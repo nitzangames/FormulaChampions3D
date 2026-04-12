@@ -6,7 +6,7 @@ import { Input } from './input.js';
 import {
   VERSION, FIXED_DT, NUM_CARS, NUM_LAPS, MAX_SPEED,
   TRACK_SEEDS, PX_TO_WORLD, RESPAWN_DELAY_SEC, AI_SKILLS,
-  COUNTDOWN_SECONDS, TILE,
+  COUNTDOWN_SECONDS, TILE, TURN_SPEED_PENALTY,
 } from './constants.js';
 import { Car } from './car.js';
 import { generateTrack, buildTrackPath, buildWallPaths, createWallBodies } from './track.js';
@@ -65,6 +65,10 @@ const CAR_COLORS = [0x2266dd, 0xdd3333, 0x33bb33, 0xddaa22];
 const minimapCanvas = document.getElementById('minimap');
 const minimapCtx = minimapCanvas.getContext('2d');
 const MINIMAP_DOT_COLORS = ['#44f', '#f44', '#4f4', '#ff4'];
+
+// Overlay canvas for 2D steering wheel
+const overlayCanvas = document.getElementById('overlay-canvas');
+const overlayCtx = overlayCanvas.getContext('2d');
 
 // UI state
 let selectedStyle = 0;
@@ -834,6 +838,98 @@ function drawMinimap() {
 
 // ── Render frame ────────────────────────────────────────────────────────────
 
+// ── Steering Wheel (2D overlay) ────────────────────────────────────────────
+
+function drawSteeringWheel(ctx, screenX, screenY, steering, speed) {
+  const R = 120;
+  const rimOuter = R;
+  const rimInner = R * 0.76;
+  const hubRadius = R * 0.28;
+  const rotation = steering * Math.PI * 0.75;
+
+  ctx.save();
+  ctx.globalAlpha = 0.9;
+  ctx.translate(screenX, screenY);
+  ctx.rotate(rotation);
+
+  // Matte black suede donut rim
+  ctx.fillStyle = '#141414';
+  ctx.beginPath();
+  ctx.arc(0, 0, rimOuter, 0, Math.PI * 2);
+  ctx.arc(0, 0, rimInner, 0, Math.PI * 2, true);
+  ctx.fill('evenodd');
+
+  // Subtle suede texture
+  ctx.fillStyle = '#1f1f1f';
+  for (let i = 0; i < 100; i++) {
+    const a = (i * 0.4389) % (Math.PI * 2);
+    const r = rimInner + 2 + ((i * 1.93) % (rimOuter - rimInner - 4));
+    ctx.beginPath();
+    ctx.arc(Math.cos(a) * r, Math.sin(a) * r, 0.9, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // Yellow 12 o'clock marker
+  ctx.fillStyle = '#ffd23a';
+  ctx.fillRect(-5, -rimOuter - 1, 10, (rimOuter - rimInner) + 3);
+
+  // 3 spokes
+  const spokeAngles = [Math.PI / 2, 0, Math.PI];
+  const spokeHalfW = R * 0.06;
+  const spokeInner = hubRadius;
+  const spokeOuter = rimInner - 2;
+
+  for (const a of spokeAngles) {
+    ctx.save();
+    ctx.rotate(a);
+    ctx.fillStyle = '#2a2a2e';
+    ctx.beginPath();
+    ctx.moveTo(spokeInner, -spokeHalfW);
+    ctx.lineTo(spokeOuter - spokeHalfW, -spokeHalfW);
+    ctx.arc(spokeOuter - spokeHalfW, 0, spokeHalfW, -Math.PI / 2, Math.PI / 2);
+    ctx.lineTo(spokeInner, spokeHalfW);
+    ctx.arc(spokeInner, 0, spokeHalfW, Math.PI / 2, -Math.PI / 2);
+    ctx.closePath();
+    ctx.fill();
+
+    // Highlight
+    ctx.fillStyle = '#3a3a3e';
+    ctx.fillRect(spokeInner + 4, -spokeHalfW + 1, spokeOuter - spokeInner - 8, 1.5);
+
+    // Weight-saving holes
+    ctx.fillStyle = '#0a0a0a';
+    for (let i = 0; i < 3; i++) {
+      const t = 0.28 + i * 0.22;
+      const x = spokeInner + (spokeOuter - spokeInner) * t;
+      ctx.beginPath();
+      ctx.arc(x, 0, spokeHalfW * 0.48, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  // Center hub
+  ctx.fillStyle = '#1a1a1a';
+  ctx.beginPath(); ctx.arc(0, 0, hubRadius, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = '#a8a8ac';
+  ctx.lineWidth = 1.8;
+  ctx.beginPath(); ctx.arc(0, 0, hubRadius, 0, Math.PI * 2); ctx.stroke();
+
+  // Turn-speed ratio (counter-rotate to stay upright)
+  const ratio = 1 - Math.abs(steering || 0) * (1 - TURN_SPEED_PENALTY);
+  const pct = Math.round(ratio * 100);
+  ctx.save();
+  ctx.rotate(-rotation);
+  ctx.fillStyle = '#ffd23a';
+  ctx.font = 'bold 27px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(pct + '%', 0, 0);
+  ctx.restore();
+
+  ctx.restore();
+}
+
 function renderFrame(dt) {
   // Update 3D car model positions from 2D car state
   for (let i = 0; i < cars.length; i++) {
@@ -875,6 +971,13 @@ function renderFrame(dt) {
   const st = gameState.state;
   if (st === 'racing' || st === 'finishing') {
     drawMinimap();
+  }
+
+  // Steering wheel overlay
+  overlayCtx.clearRect(0, 0, 1080, 1920);
+  if (input.dragging && st !== 'paused') {
+    const yOffset = input.pointerType === 'mouse' ? 0 : -220;
+    drawSteeringWheel(overlayCtx, input.dragScreenX, input.dragScreenY + yOffset, input.steering, cars[0]?.speed || 0);
   }
 }
 

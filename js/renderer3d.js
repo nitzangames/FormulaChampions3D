@@ -1,6 +1,6 @@
 import { CHASE_CAM_FOV } from './constants.js';
 
-let renderer, scene, camera;
+let renderer, scene, camera, sunLight;
 
 const ASPECT = 9 / 16; // portrait 9:16
 
@@ -21,16 +21,17 @@ export function initRenderer(canvas) {
   camera.lookAt(0, 0, 0);
 
   // Directional light with shadows
-  const dirLight = new THREE.DirectionalLight(0xffffff, 0.9);
-  dirLight.position.set(10, 20, 10);
-  dirLight.castShadow = true;
-  dirLight.shadow.mapSize.width = 1024;
-  dirLight.shadow.mapSize.height = 1024;
-  dirLight.shadow.camera.left = -30;
-  dirLight.shadow.camera.right = 30;
-  dirLight.shadow.camera.top = 30;
-  dirLight.shadow.camera.bottom = -30;
-  scene.add(dirLight);
+  sunLight = new THREE.DirectionalLight(0xffffff, 0.9);
+  sunLight.position.set(10, 20, 10);
+  sunLight.castShadow = true;
+  sunLight.shadow.mapSize.width = 1024;
+  sunLight.shadow.mapSize.height = 1024;
+  sunLight.shadow.camera.left = -30;
+  sunLight.shadow.camera.right = 30;
+  sunLight.shadow.camera.top = 30;
+  sunLight.shadow.camera.bottom = -30;
+  scene.add(sunLight);
+  scene.add(sunLight.target);
 
   // Ambient light
   const ambLight = new THREE.AmbientLight(0x6688aa, 0.5);
@@ -72,6 +73,13 @@ function handleResize() {
 
 export function render() {
   renderer.render(scene, camera);
+}
+
+export function updateSunPosition(x, z) {
+  if (!sunLight) return;
+  sunLight.position.set(x + 10, 20, z + 10);
+  sunLight.target.position.set(x, 0, z);
+  sunLight.target.updateMatrixWorld();
 }
 
 export function getScene() { return scene; }

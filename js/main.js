@@ -22,10 +22,12 @@ import {
   getSfxEnabled, setSfxEnabled, getHapticsEnabled, setHapticsEnabled,
 } from './audio.js';
 import { GOLD_REWARDS, addGold, getGold, getUnlockedCars, isCarUnlocked, unlockCar, UNLOCK_COST } from './currency.js';
-import { initRenderer, render as renderScene, getScene, getCamera } from './renderer3d.js';
+import { initRenderer, render as renderScene, getScene, getCamera, updateSunPosition } from './renderer3d.js';
 import { initChaseCamera, updateChaseCamera, triggerShake, resetChaseCamera } from './camera3d.js';
 import { buildTrack as buildTrack3D, disposeTrack } from './track-builder.js';
 import { buildCarModel, updateCarModel, CAR_STYLE_NAMES } from './car-models.js';
+import { initEffects, updateEffects, updateSpeedLines, spawnSmoke, spawnSparks, addSkidmark, clearEffects } from './effects3d.js';
+import { buildScenery, disposeScenery } from './scenery.js';
 
 // ── State ───────────────────────────────────────────────────────────────────
 
@@ -129,12 +131,15 @@ function hideHUD() { document.getElementById('hud').classList.add('hidden'); }
 
 initRenderer(canvas);
 initAudio();
+initEffects(getScene(), getCamera());
 
 // ── Track setup ─────────────────────────────────────────────────────────────
 
 function initTrack(seed) {
-  // Dispose previous 3D geometry
+  // Dispose previous 3D geometry and effects
   disposeTrack();
+  disposeScenery();
+  clearEffects();
 
   // Generate 2D track
   track = generateTrack(seed);
@@ -163,6 +168,7 @@ function initTrack(seed) {
         car.onWallCollision(contact);
         // If this collision caused a crash (was not crashed before)
         if (!wasCrashed && car.crashed) {
+          spawnSparks(car.x, car.y);
           if (car === cars[0]) {
             playCrash();
             hapticThump();
@@ -182,6 +188,9 @@ function initTrack(seed) {
 
   // Build 3D track
   buildTrack3D(getScene(), centerLine, track);
+
+  // Build scenery (trees, etc.)
+  buildScenery(getScene(), centerLine);
 }
 
 // ── Car spawning ────────────────────────────────────────────────────────────
@@ -570,6 +579,7 @@ function setupButtons() {
   document.getElementById('btn-quit').addEventListener('click', () => {
     playClick();
     hapticTap();
+    clearEffects();
     gameState.reset();
     showScreen('title');
   });
@@ -586,6 +596,7 @@ function setupButtons() {
   document.getElementById('btn-menu').addEventListener('click', () => {
     playClick();
     hapticTap();
+    clearEffects();
     gameState.reset();
     showScreen('title');
   });
@@ -773,9 +784,24 @@ function renderFrame(dt) {
     updateCarModel(model, car.x, car.y, car.angle, car.speed, steering, dt);
   }
 
+  // Effects
+  for (let i = 0; i < cars.length; i++) {
+    const car = cars[i];
+    const steer = (i === 0) ? input.steering : 0;
+    if (Math.abs(steer) > 0.5 && car.speed > MAX_SPEED * 0.3) {
+      spawnSmoke(car.x, car.y, car.angle);
+    }
+    if (i === 0 && car.speed > 50) {
+      addSkidmark(car.x, car.y, car.angle, steer);
+    }
+  }
+  updateEffects(dt);
+  updateSpeedLines(getCamera(), cars[0]?.speed || 0, dt);
+
   // Update chase camera following player car
   if (cars[0]) {
     updateChaseCamera(cars[0].x, cars[0].y, cars[0].angle, cars[0].speed);
+    updateSunPosition(cars[0].x * PX_TO_WORLD, cars[0].y * PX_TO_WORLD);
   }
 
   // Render the 3D scene

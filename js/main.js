@@ -61,6 +61,11 @@ let lastTime = 0;
 // Car colors
 const CAR_COLORS = [0x2266dd, 0xdd3333, 0x33bb33, 0xddaa22];
 
+// Minimap
+const minimapCanvas = document.getElementById('minimap');
+const minimapCtx = minimapCanvas.getContext('2d');
+const MINIMAP_DOT_COLORS = ['#44f', '#f44', '#4f4', '#ff4'];
+
 // UI state
 let selectedStyle = 0;
 let currentTrackIndex = 0;
@@ -771,6 +776,60 @@ function fixedUpdate() {
   }
 }
 
+// ── Minimap ────────────────────────────────────────────────────────────────
+
+function drawMinimap() {
+  if (!centerLine || centerLine.length === 0) return;
+
+  const w = minimapCanvas.width;   // 120
+  const h = minimapCanvas.height;  // 120
+  const pad = 10;
+
+  minimapCtx.clearRect(0, 0, w, h);
+
+  // Find track bounds
+  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+  for (const pt of centerLine) {
+    if (pt.x < minX) minX = pt.x;
+    if (pt.x > maxX) maxX = pt.x;
+    if (pt.y < minY) minY = pt.y;
+    if (pt.y > maxY) maxY = pt.y;
+  }
+
+  const rangeX = maxX - minX || 1;
+  const rangeY = maxY - minY || 1;
+  const scale = Math.min((w - pad * 2) / rangeX, (h - pad * 2) / rangeY);
+  const offX = (w - rangeX * scale) / 2;
+  const offY = (h - rangeY * scale) / 2;
+
+  function toMiniX(x) { return offX + (x - minX) * scale; }
+  function toMiniY(y) { return offY + (y - minY) * scale; }
+
+  // Draw track outline
+  minimapCtx.beginPath();
+  minimapCtx.moveTo(toMiniX(centerLine[0].x), toMiniY(centerLine[0].y));
+  for (let i = 1; i < centerLine.length; i++) {
+    minimapCtx.lineTo(toMiniX(centerLine[i].x), toMiniY(centerLine[i].y));
+  }
+  minimapCtx.closePath();
+  minimapCtx.strokeStyle = '#666';
+  minimapCtx.lineWidth = 3;
+  minimapCtx.stroke();
+
+  // Draw car dots (AI first so player is on top)
+  for (let i = cars.length - 1; i >= 0; i--) {
+    const car = cars[i];
+    if (!car) continue;
+    const cx = toMiniX(car.x);
+    const cy = toMiniY(car.y);
+    const radius = i === 0 ? 4 : 3;
+    minimapCtx.beginPath();
+    minimapCtx.arc(cx, cy, radius, 0, Math.PI * 2);
+    minimapCtx.fillStyle = MINIMAP_DOT_COLORS[i] || '#fff';
+    minimapCtx.fill();
+  }
+}
+
 // ── Render frame ────────────────────────────────────────────────────────────
 
 function renderFrame(dt) {
@@ -809,6 +868,12 @@ function renderFrame(dt) {
 
   // Update HUD
   updateHUD();
+
+  // Minimap
+  const st = gameState.state;
+  if (st === 'racing' || st === 'finishing') {
+    drawMinimap();
+  }
 }
 
 // ── Game loop ───────────────────────────────────────────────────────────────

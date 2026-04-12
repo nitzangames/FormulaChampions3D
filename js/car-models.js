@@ -77,42 +77,33 @@ function buildGT3Classic(color) {
   const bodyMat = mat(color);
   const glass = glassMat();
 
-  // Main body — slightly narrower front, wider rear
-  addMesh(g, box(1.1, 0.28, 2.2), bodyMat, 0, 0.22, 0);
+  // Lower body — wide, low slab
+  addMesh(g, box(1.2, 0.22, 2.4), bodyMat, 0, 0.2, 0);
 
-  // Narrow nose section
-  addMesh(g, box(0.85, 0.22, 0.5), bodyMat, 0, 0.19, -1.15);
+  // Hood — slopes down toward the front
+  addMesh(g, box(1.1, 0.14, 0.8), bodyMat, 0, 0.32, -0.7);
 
-  // Rear haunches — wider rear
-  addMesh(g, box(0.65, 0.25, 0.7), bodyMat, -0.7, 0.22, 0.5);
-  addMesh(g, box(0.65, 0.25, 0.7), bodyMat, 0.7, 0.22, 0.5);
+  // Cabin roof
+  addMesh(g, box(0.95, 0.18, 0.7), bodyMat, 0, 0.42, 0.15);
 
-  // Cabin — set slightly back
-  addMesh(g, box(0.9, 0.22, 0.8), bodyMat, 0, 0.45, 0.1);
+  // Windshield (angled front glass)
+  addMesh(g, box(0.9, 0.16, 0.02), glass, 0, 0.38, -0.2);
 
-  // Windshield
-  addMesh(g, box(0.85, 0.2, 0.02), glass, 0, 0.44, -0.3);
   // Rear window
-  addMesh(g, box(0.8, 0.18, 0.02), glass, 0, 0.42, 0.52);
-  // Side windows
-  addMesh(g, box(0.02, 0.18, 0.6), glass, -0.46, 0.44, 0.1);
-  addMesh(g, box(0.02, 0.18, 0.6), glass, 0.46, 0.44, 0.1);
+  addMesh(g, box(0.85, 0.14, 0.02), glass, 0, 0.38, 0.52);
 
-  // Round headlights (spheres)
-  const headlightMat = mat(0xffffcc);
-  const headGeo = new THREE.SphereGeometry(0.08, 8, 8);
-  addMesh(g, headGeo, headlightMat, -0.3, 0.25, -1.42);
-  addMesh(g, headGeo, headlightMat, 0.3, 0.25, -1.42);
-
-  // Ducktail spoiler
-  addMesh(g, box(1.0, 0.06, 0.15), bodyMat, 0, 0.42, 1.05);
+  // Rear spoiler lip
+  addMesh(g, box(1.0, 0.05, 0.12), bodyMat, 0, 0.35, 1.15);
 
   // Taillights
-  addMesh(g, box(0.15, 0.08, 0.04), mat(0xff2200), -0.45, 0.3, 1.12);
-  addMesh(g, box(0.15, 0.08, 0.04), mat(0xff2200), 0.45, 0.3, 1.12);
+  addMesh(g, box(0.2, 0.06, 0.04), mat(0xff2200), -0.45, 0.25, 1.22);
+  addMesh(g, box(0.2, 0.06, 0.04), mat(0xff2200), 0.45, 0.25, 1.22);
 
+  // Headlights
+  addMesh(g, box(0.2, 0.06, 0.04), mat(0xffffcc), -0.35, 0.25, -1.22);
+  addMesh(g, box(0.2, 0.06, 0.04), mat(0xffffcc), 0.35, 0.25, -1.22);
 
-  addWheels(g, 0.62, 0.18, -0.7, 0.7);
+  addWheels(g, 0.6, 0.16, -0.75, 0.75);
   return g;
 }
 

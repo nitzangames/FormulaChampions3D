@@ -194,7 +194,9 @@ function placeBlocksAlongPath(path, redMat, whiteMat, startIndex, outwardSign) {
 // ── Start / Finish Line ───────────────────────────────────────────────────────
 
 function buildStartFinishLine(center) {
-  const idx = 2;
+  // Finish line = exit of the start tile. With 2 grid tiles + 1 start tile,
+  // this is waypoint 3 (not 2 as in the old single-grid-tile version).
+  const idx = 3;
   if (idx + 1 >= center.length) return;
 
   const p = center[idx];

@@ -44,6 +44,14 @@ html, body {
   pointer-events: auto;
 }
 
+#hud {
+  pointer-events: none;
+}
+
+#hud .btn-icon {
+  pointer-events: auto;
+}
+
 .hidden { display: none !important; }
 
 #err {

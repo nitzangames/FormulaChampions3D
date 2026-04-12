@@ -171,14 +171,24 @@ export function generateTrack(seed) {
     tiles.push(startTile);
     markCells(startTile.cells);
 
+    // Two straight runoff tiles after start/finish for clean acceleration zone
+    let prevTile = startTile;
+    for (let r = 0; r < 2; r++) {
+      const runoff = makeStraight(prevTile.exitGx, prevTile.exitGy, DIR_S);
+      runoff.type = 'runoff';
+      tiles.push(runoff);
+      markCells(runoff.cells);
+      prevTile = runoff;
+    }
+
     // Loop target: last tile must exit at grid tile entry = (0, 0) heading DIR_S
     const targetGx = 0;
     const targetGy = 0;
     const targetDir = DIR_S;
 
-    let cx = startTile.exitGx;
-    let cy = startTile.exitGy;
-    let cdir = startTile.exitDir;
+    let cx = prevTile.exitGx;
+    let cy = prevTile.exitGy;
+    let cdir = prevTile.exitDir;
 
     let consecutiveStraights = 0;
     const maxIter = 500;

@@ -389,7 +389,7 @@ const BUILDERS = [
 export function buildCarModel(styleIndex, color) {
   const idx = Math.max(0, Math.min(styleIndex, BUILDERS.length - 1));
   const model = BUILDERS[idx](color);
-  model.scale.set(0.5, 0.75, 0.5);
+  model.scale.set(0.5, 1.0, 0.5);
   return model;
 }
 

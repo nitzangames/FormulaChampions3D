@@ -670,9 +670,7 @@ function fixedUpdate() {
     gameState.tickRace();
 
     // Player input
-    // Negate steering: in 2D with rotating camera, +angle looks like turning right.
-    // In 3D chase cam, +angle is visually left. Flip so drag-right = turn-right.
-    const playerSteering = -input.steering;
+    const playerSteering = input.steering;
     cars[0].update(playerSteering);
 
     // AI controllers

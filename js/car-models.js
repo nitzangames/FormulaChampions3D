@@ -111,8 +111,6 @@ function buildGT3Classic(color) {
   addMesh(g, box(0.15, 0.08, 0.04), mat(0xff2200), -0.45, 0.3, 1.12);
   addMesh(g, box(0.15, 0.08, 0.04), mat(0xff2200), 0.45, 0.3, 1.12);
 
-  // Floor pan
-  addMesh(g, box(1.1, 0.04, 2.4), darkMat(), 0, 0.06, 0);
 
   addWheels(g, 0.62, 0.18, -0.7, 0.7);
   return g;
@@ -162,8 +160,6 @@ function buildMuscleGT(color) {
   // Rear bumper
   addMesh(g, box(1.5, 0.1, 0.08), darkMat(), 0, 0.12, 1.34);
 
-  // Floor pan
-  addMesh(g, box(1.5, 0.04, 2.7), darkMat(), 0, 0.06, 0);
 
   addWheels(g, 0.82, 0.18, -0.85, 0.85);
   return g;
@@ -215,8 +211,6 @@ function buildRallyGT(color) {
   addMesh(g, box(0.12, 0.08, 0.04), mat(0xffff88), -0.5, 0.2, -1.12);
   addMesh(g, box(0.12, 0.08, 0.04), mat(0xffff88), 0.5, 0.2, -1.12);
 
-  // Floor pan
-  addMesh(g, box(1.3, 0.04, 2.3), dark, 0, 0.06, 0);
 
   addWheels(g, 0.72, 0.18, -0.7, 0.7);
   return g;
@@ -271,8 +265,6 @@ function buildLMP(color) {
   // Rear diffuser
   addMesh(g, box(1.0, 0.12, 0.2), dark, 0, 0.08, 1.5);
 
-  // Floor pan
-  addMesh(g, box(1.3, 0.04, 3.1), dark, 0, 0.04, 0);
 
   addWheels(g, 0.72, 0.18, -1.1, 1.0);
   return g;
@@ -326,8 +318,6 @@ function buildJDMStreet(color) {
   // Front bumper / lower intake
   addMesh(g, box(1.1, 0.1, 0.06), dark, 0, 0.1, -1.12);
 
-  // Floor pan
-  addMesh(g, box(1.3, 0.04, 2.3), dark, 0, 0.06, 0);
 
   addWheels(g, 0.7, 0.18, -0.7, 0.7);
   return g;
@@ -387,8 +377,6 @@ function buildRetroGT(color) {
   addMesh(g, tailGeo, mat(0xff2200), -0.4, 0.28, 1.22);
   addMesh(g, tailGeo, mat(0xff2200), 0.4, 0.28, 1.22);
 
-  // Floor pan
-  addMesh(g, box(1.15, 0.04, 2.5), dark, 0, 0.06, 0);
 
   addWheels(g, 0.64, 0.18, -0.75, 0.75);
   return g;

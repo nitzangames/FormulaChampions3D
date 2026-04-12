@@ -35,8 +35,10 @@ export function updateChaseCamera(x2d, y2d, angle, speed) {
   while (angleDiff < -Math.PI) angleDiff += 2 * Math.PI;
   currentAngle += angleDiff * CHASE_CAM_LERP;
 
-  // 3. Car forward direction in 3D (2D angle 0 = north/-Y = -Z in 3D)
-  const fwdX = -Math.sin(currentAngle);
+  // 3. Car forward direction in 3D
+  // Car model faces -Z. After rotation.y = -angle, world forward is:
+  //   (sin(angle), 0, -cos(angle))
+  const fwdX = Math.sin(currentAngle);
   const fwdZ = -Math.cos(currentAngle);
 
   // 4. Camera position: behind car by CHASE_CAM_DISTANCE, above by CHASE_CAM_HEIGHT

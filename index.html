@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Mini GT 3D</title>
+  <title>Formula 3D</title>
   <link rel="stylesheet" href="css/ui.css">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 </head>
@@ -13,23 +13,33 @@
   <div id="ui">
     <!-- Title Screen -->
     <div id="screen-title" class="screen">
-      <h1 class="game-title">MINI GT 3D</h1>
-      <button id="btn-race" class="btn-primary">RACE</button>
+      <h1 class="game-title">FORMULA 3D</h1>
+      <button id="btn-new-career" class="btn-primary">NEW CAREER</button>
+      <button id="btn-continue-career" class="btn-secondary hidden">CONTINUE</button>
       <div class="version" id="version-text"></div>
     </div>
 
-    <!-- Car Select -->
-    <div id="screen-carselect" class="screen hidden">
-      <h2>SELECT CAR</h2>
-      <div id="car-grid" class="car-grid"></div>
-      <div class="gold-display"><span id="gold-amount">0</span> GOLD</div>
+    <!-- Season Setup -->
+    <div id="screen-seasonsetup" class="screen hidden">
+      <h2>SEASON LENGTH</h2>
+      <p class="subtitle">Choose how many races you want in this season</p>
+      <button data-length="5" class="btn-season btn-primary">SHORT — 5 RACES</button>
+      <button data-length="10" class="btn-season btn-primary">MEDIUM — 10 RACES</button>
+      <button data-length="20" class="btn-season btn-primary">LONG — 20 RACES</button>
+      <button id="btn-season-back" class="btn-secondary">BACK</button>
     </div>
 
-    <!-- Track Select -->
-    <div id="screen-trackselect" class="screen hidden">
-      <h2>SELECT TRACK</h2>
-      <div id="track-grid" class="track-grid"></div>
-      <button id="btn-back-car" class="btn-secondary">BACK</button>
+    <!-- Career Home -->
+    <div id="screen-career" class="screen hidden">
+      <h2 id="career-tier">Formula 4</h2>
+      <div class="career-info">
+        <div class="career-row"><span>Race</span><strong id="career-race">1 / 10</strong></div>
+        <div class="career-row"><span>Your points</span><strong id="career-points">0</strong></div>
+        <div class="career-row"><span>Championship</span><strong id="career-standing">—</strong></div>
+      </div>
+      <div class="standings-mini" id="standings-mini"></div>
+      <button id="btn-next-race" class="btn-primary">NEXT RACE</button>
+      <button id="btn-abandon" class="btn-secondary">ABANDON CAREER</button>
     </div>
 
     <!-- Racing HUD -->
@@ -42,7 +52,7 @@
         </div>
         <div class="hud-right"><button id="btn-pause" class="btn-icon">II</button></div>
       </div>
-      <div id="hud-pos" class="hud-position">POS 1/4</div>
+      <div id="hud-pos" class="hud-position">POS 1/8</div>
       <div class="hud-bottom"><div id="hud-speed" class="hud-speed">0 km/h</div></div>
       <canvas id="minimap" width="120" height="120"></canvas>
     </div>
@@ -57,15 +67,30 @@
       <div class="respawn-text">RESPAWNING</div>
     </div>
 
-    <!-- Finished -->
+    <!-- Race Results -->
     <div id="screen-finished" class="screen hidden">
       <h2>RACE COMPLETE</h2>
       <div id="finish-position" class="finish-pos">1ST</div>
       <div id="finish-time" class="finish-detail"></div>
       <div id="finish-best" class="finish-detail"></div>
-      <div id="finish-gold" class="finish-detail"></div>
-      <button id="btn-next" class="btn-primary">NEXT RACE</button>
-      <button id="btn-menu" class="btn-secondary">MENU</button>
+      <div id="finish-points" class="finish-detail finish-points"></div>
+      <div id="race-standings" class="standings-mini"></div>
+      <button id="btn-next" class="btn-primary">CONTINUE</button>
+    </div>
+
+    <!-- Season End -->
+    <div id="screen-seasonend" class="screen hidden">
+      <h2 id="seasonend-title">SEASON COMPLETE</h2>
+      <div id="seasonend-message" class="finish-detail"></div>
+      <div id="seasonend-standings" class="standings-mini"></div>
+      <button id="btn-season-continue" class="btn-primary">CONTINUE</button>
+    </div>
+
+    <!-- Career Complete -->
+    <div id="screen-careercomplete" class="screen hidden">
+      <h2>CHAMPION</h2>
+      <div class="finish-detail">You have won the Formula 1 championship!</div>
+      <button id="btn-career-done" class="btn-primary">NEW CAREER</button>
     </div>
 
     <!-- Pause -->
@@ -73,7 +98,7 @@
       <h2>PAUSED</h2>
       <button id="btn-resume" class="btn-primary">RESUME</button>
       <button id="btn-retry" class="btn-secondary">RETRY</button>
-      <button id="btn-quit" class="btn-secondary">QUIT</button>
+      <button id="btn-quit" class="btn-secondary">QUIT TO CAREER</button>
       <div class="toggle-row"><label>SFX</label><button id="btn-sfx" class="btn-toggle">ON</button></div>
       <div class="toggle-row"><label>HAPTICS</label><button id="btn-haptics" class="btn-toggle">ON</button></div>
     </div>

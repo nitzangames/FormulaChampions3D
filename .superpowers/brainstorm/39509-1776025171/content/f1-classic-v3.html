@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Classic F1 - V3 (Smoother)</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #0d0d14; color: #e0e0e0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+  h1 { text-align: center; padding: 24px 0 4px; font-size: 28px; color: #fff; }
+  .subtitle { text-align: center; color: #888; margin-bottom: 24px; font-size: 14px; }
+  .container { max-width: 700px; margin: 0 auto; padding: 0 20px 40px; }
+  .mockup { border: 2px solid #4ecdc4; border-radius: 12px; overflow: hidden; background: #161622; }
+  .mockup canvas { width: 100%; height: 440px; display: block; }
+  .label { padding: 14px 16px; background: #1a1a26; font-size: 14px; color: #ccc; }
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+</head>
+<body>
+
+<h1>Classic F1 — Smoother Shapes</h1>
+<p class="subtitle">Cylinders, cones, and tapered shapes for a less blocky silhouette</p>
+
+<div class="container">
+  <div class="mockup">
+    <canvas id="scene"></canvas>
+    <div class="label">Cone nose, tapered body, rounded cockpit, smoother transitions</div>
+  </div>
+</div>
+
+<script>
+function mat(color) { return new THREE.MeshLambertMaterial({ color }); }
+
+function addMesh(g, geo, m, x, y, z, rx, ry, rz) {
+  const mesh = new THREE.Mesh(geo, m);
+  mesh.position.set(x, y, z);
+  if (rx !== undefined) mesh.rotation.x = rx;
+  if (ry !== undefined) mesh.rotation.y = ry;
+  if (rz !== undefined) mesh.rotation.z = rz;
+  mesh.castShadow = true;
+  g.add(mesh);
+  return mesh;
+}
+
+function addWheel(g, x, y, z, radius) {
+  const r = radius || 0.22;
+  const tire = new THREE.Mesh(
+    new THREE.CylinderGeometry(r, r, 0.18, 20),
+    mat(0x1a1a1a)
+  );
+  tire.rotation.z = Math.PI / 2;
+  tire.position.set(x, y, z);
+  tire.castShadow = true;
+  g.add(tire);
+  // Rim hint (lighter disc on outer face)
+  const rim = new THREE.Mesh(
+    new THREE.CylinderGeometry(r * 0.55, r * 0.55, 0.19, 12),
+    mat(0x555555)
+  );
+  rim.rotation.z = Math.PI / 2;
+  rim.position.set(x, y, z);
+  g.add(rim);
+}
+
+const canvas = document.getElementById('scene');
+const w = canvas.clientWidth * 2, h = 880;
+canvas.width = w; canvas.height = h;
+
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+renderer.setSize(w, h, false);
+renderer.setClearColor(0x2a2a3a);
+renderer.shadowMap.enabled = true;
+
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(35, w / h, 0.1, 100);
+
+const sun = new THREE.DirectionalLight(0xffffff, 1.0);
+sun.position.set(5, 8, 5);
+sun.castShadow = true;
+scene.add(sun);
+scene.add(new THREE.AmbientLight(0x6677aa, 0.5));
+
+const ground = new THREE.Mesh(
+  new THREE.PlaneGeometry(20, 20),
+  mat(0x444455)
+);
+ground.rotation.x = -Math.PI / 2;
+ground.receiveShadow = true;
+scene.add(ground);
+
+const g = new THREE.Group();
+const red = mat(0xdd2222);
+const dark = mat(0x222222);
+const white = mat(0xeeeeee);
+
+// ── Main body — lathe/cylinder-based for rounded top ────────────────────────
+// Central tub — use a cylinder along Z for the main body (oval cross-section)
+// Oriented so its length is along Z. Flattened slightly by scaling.
+const tubGeo = new THREE.CylinderGeometry(0.35, 0.35, 1.8, 16);
+const tub = new THREE.Mesh(tubGeo, red);
+tub.rotation.x = Math.PI / 2;
+tub.scale.set(1.2, 1.0, 1.0); // wider than tall
+tub.position.set(0, 0.32, 0.1);
+tub.castShadow = true;
+g.add(tub);
+
+// ── Nose — tapered cone ─────────────────────────────────────────────────────
+// Cylinder that tapers from body width down to a point
+const noseGeo = new THREE.CylinderGeometry(0.3, 0.06, 1.2, 16);
+const nose = new THREE.Mesh(noseGeo, red);
+nose.rotation.x = Math.PI / 2;
+nose.scale.set(1.0, 1.0, 0.7);
+nose.position.set(0, 0.28, -1.4);
+nose.castShadow = true;
+g.add(nose);
+
+// ── Side pods — rounded cylinders tapered at front and back ─────────────────
+for (const side of [-1, 1]) {
+  const podGeo = new THREE.CylinderGeometry(0.14, 0.1, 1.0, 12);
+  const pod = new THREE.Mesh(podGeo, red);
+  pod.rotation.x = Math.PI / 2;
+  pod.scale.set(1.0, 1.0, 0.8);
+  pod.position.set(side * 0.52, 0.26, 0.15);
+  pod.castShadow = true;
+  g.add(pod);
+
+  // Air intake (black) — cylinder embedded in front of pod
+  const intakeGeo = new THREE.CylinderGeometry(0.09, 0.09, 0.08, 12);
+  const intake = new THREE.Mesh(intakeGeo, dark);
+  intake.rotation.x = Math.PI / 2;
+  intake.position.set(side * 0.52, 0.26, -0.33);
+  g.add(intake);
+}
+
+// ── Cockpit opening — chamfered rim ─────────────────────────────────────────
+// A short cylinder to suggest the cockpit rim
+const rim = new THREE.Mesh(
+  new THREE.CylinderGeometry(0.22, 0.22, 0.06, 16),
+  dark
+);
+rim.position.set(0, 0.51, -0.2);
+rim.scale.set(1.2, 1.0, 1.6);
+g.add(rim);
+
+// Driver helmet (sphere)
+const helmet = new THREE.Mesh(new THREE.SphereGeometry(0.14, 16, 12), white);
+helmet.position.set(0, 0.62, -0.2);
+helmet.castShadow = true;
+g.add(helmet);
+
+// Helmet visor (dark band)
+const visor = new THREE.Mesh(new THREE.SphereGeometry(0.141, 16, 12, 0, Math.PI * 2, Math.PI * 0.35, Math.PI * 0.2), dark);
+visor.position.set(0, 0.62, -0.2);
+g.add(visor);
+
+// ── Engine cover — tapered cylinder rising toward rear ──────────────────────
+const engineGeo = new THREE.CylinderGeometry(0.32, 0.28, 0.9, 16);
+const engine = new THREE.Mesh(engineGeo, red);
+engine.rotation.x = Math.PI / 2;
+engine.scale.set(1.1, 1.0, 0.85);
+engine.position.set(0, 0.42, 0.6);
+engine.castShadow = true;
+g.add(engine);
+
+// Airbox — cone/cylinder hybrid above/behind driver
+const airbox = new THREE.Mesh(
+  new THREE.CylinderGeometry(0.14, 0.18, 0.32, 12),
+  dark
+);
+airbox.position.set(0, 0.7, 0.2);
+airbox.scale.set(1.0, 1.0, 0.9);
+g.add(airbox);
+
+// Airbox intake (hole)
+const airHole = new THREE.Mesh(
+  new THREE.CylinderGeometry(0.1, 0.1, 0.02, 10),
+  mat(0x000000)
+);
+airHole.position.set(0, 0.86, 0.2);
+g.add(airHole);
+
+// ── Rear wing — still box (wings are flat plates) ──────────────────────────
+const mainPlane = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.04, 0.2), dark);
+mainPlane.position.set(0, 0.75, 1.15);
+mainPlane.castShadow = true;
+g.add(mainPlane);
+// Endplates
+for (const side of [-1, 1]) {
+  const ep = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.35, 0.28), dark);
+  ep.position.set(side * 0.5, 0.6, 1.15);
+  g.add(ep);
+}
+// Center support pylon
+const pylon = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.3, 0.06), dark);
+pylon.position.set(0, 0.6, 1.12);
+g.add(pylon);
+
+// ── Front wing ──────────────────────────────────────────────────────────────
+const fwMain = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.04, 0.15), dark);
+fwMain.position.set(0, 0.12, -2.05);
+g.add(fwMain);
+for (const side of [-1, 1]) {
+  const ep = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.2, 0.22), dark);
+  ep.position.set(side * 0.44, 0.18, -2.05);
+  g.add(ep);
+}
+
+// Small front wing support to nose
+const fwSupport = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.3, 8), dark);
+fwSupport.rotation.x = Math.PI / 2;
+fwSupport.position.set(0, 0.18, -1.9);
+g.add(fwSupport);
+
+// ── Exhaust pipes ───────────────────────────────────────────────────────────
+for (const side of [-1, 1]) {
+  const pipe = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.04, 0.04, 0.2, 10),
+    mat(0x888888)
+  );
+  pipe.rotation.x = Math.PI / 2;
+  pipe.position.set(side * 0.15, 0.4, 1.02);
+  g.add(pipe);
+}
+
+// ── Wheels ──────────────────────────────────────────────────────────────────
+addWheel(g, -0.7, 0.22, -1.15, 0.26);
+addWheel(g, 0.7, 0.22, -1.15, 0.26);
+addWheel(g, -0.75, 0.26, 0.85, 0.3);
+addWheel(g, 0.75, 0.26, 0.85, 0.3);
+
+scene.add(g);
+
+let t = 0;
+function animate() {
+  requestAnimationFrame(animate);
+  t += 0.008;
+  camera.position.x = Math.sin(t) * 5;
+  camera.position.z = Math.cos(t) * 5;
+  camera.position.y = 1.8;
+  camera.lookAt(0, 0.3, 0);
+  renderer.render(scene, camera);
+}
+animate();
+</script>
+</body>
+</html>

@@ -1,0 +1,647 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Low-Poly F1 Variations</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #0d0d14; color: #e0e0e0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+  h1 { text-align: center; padding: 24px 0 4px; font-size: 26px; color: #fff; }
+  .subtitle { text-align: center; color: #888; margin-bottom: 20px; font-size: 14px; }
+  .options { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; max-width: 1100px; margin: 0 auto; padding: 0 20px 40px; }
+  .option {
+    border: 2px solid #2a2a35; border-radius: 12px; overflow: hidden; cursor: pointer;
+    transition: border-color 0.2s; background: #161622;
+  }
+  .option:hover { border-color: #666; }
+  .option.selected { border-color: #4ecdc4; box-shadow: 0 0 16px rgba(78,205,196,0.3); }
+  .option canvas { width: 100%; height: 280px; display: block; }
+  .option-label { padding: 12px 14px; background: #1a1a26; display: flex; align-items: center; gap: 10px; }
+  .letter {
+    width: 26px; height: 26px; border-radius: 50%; background: #2a2a35;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: bold; font-size: 13px; color: #4ecdc4; flex-shrink: 0;
+  }
+  .option.selected .letter { background: #4ecdc4; color: #0d0d14; }
+  .option-text h3 { font-size: 14px; color: #fff; margin-bottom: 2px; }
+  .option-text p { font-size: 11px; color: #888; }
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+</head>
+<body>
+
+<h1>Low-Poly F1 — Faceted Variations</h1>
+<p class="subtitle">Sharp flat-shaded facets, no blocks, no smooth curves</p>
+
+<div class="options">
+  <div class="option" data-choice="a" onclick="selectOption(this)">
+    <canvas id="scene-a"></canvas>
+    <div class="option-label">
+      <div class="letter">A</div>
+      <div class="option-text">
+        <h3>Angular Wedge</h3>
+        <p>Sharp triangular nose, faceted hex body, aggressive wedge</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="b" onclick="selectOption(this)">
+    <canvas id="scene-b"></canvas>
+    <div class="option-label">
+      <div class="letter">B</div>
+      <div class="option-text">
+        <h3>Trapezoidal Panels</h3>
+        <p>Wide flat panels joined at clear creases, like a faceted gem</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="c" onclick="selectOption(this)">
+    <canvas id="scene-c"></canvas>
+    <div class="option-label">
+      <div class="letter">C</div>
+      <div class="option-text">
+        <h3>Diamond Spine</h3>
+        <p>Sharp raised spine, sloped sides meeting at a crease</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="d" onclick="selectOption(this)">
+    <canvas id="scene-d"></canvas>
+    <div class="option-label">
+      <div class="letter">D</div>
+      <div class="option-text">
+        <h3>Stealth Facet</h3>
+        <p>Multiple angled flat panels, fighter-jet inspired</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+function selectOption(el) {
+  document.querySelectorAll('.option').forEach(o => o.classList.remove('selected'));
+  el.classList.add('selected');
+  try {
+    const evt = { type: 'click', choice: el.dataset.choice, text: el.querySelector('h3').textContent, timestamp: Math.floor(Date.now()/1000) };
+    fetch('/event', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(evt) }).catch(()=>{});
+  } catch(e) {}
+}
+
+// Flat-shaded material (shows individual facets clearly)
+function fmat(color) {
+  return new THREE.MeshPhongMaterial({ color, flatShading: true, shininess: 20, side: THREE.DoubleSide });
+}
+
+function createScene(canvasId, setupFn) {
+  const canvas = document.getElementById(canvasId);
+  const w = canvas.clientWidth * 2, h = 560;
+  canvas.width = w; canvas.height = h;
+
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+  renderer.setSize(w, h, false);
+  renderer.setClearColor(0x2a2a3a);
+  renderer.shadowMap.enabled = true;
+
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(35, w / h, 0.1, 100);
+
+  const sun = new THREE.DirectionalLight(0xffffff, 1.0);
+  sun.position.set(5, 8, 5);
+  sun.castShadow = true;
+  scene.add(sun);
+  scene.add(new THREE.AmbientLight(0x556688, 0.6));
+
+  const ground = new THREE.Mesh(
+    new THREE.PlaneGeometry(20, 20),
+    new THREE.MeshLambertMaterial({ color: 0x3a3a48 })
+  );
+  ground.rotation.x = -Math.PI / 2;
+  ground.receiveShadow = true;
+  scene.add(ground);
+
+  const g = new THREE.Group();
+  setupFn(g);
+  scene.add(g);
+
+  let t = 0;
+  function animate() {
+    requestAnimationFrame(animate);
+    t += 0.008;
+    camera.position.x = Math.sin(t) * 5;
+    camera.position.z = Math.cos(t) * 5;
+    camera.position.y = 1.8;
+    camera.lookAt(0, 0.3, 0);
+    renderer.render(scene, camera);
+  }
+  animate();
+}
+
+// ─── Build a custom convex body from vertices and faces ────────────────────
+function buildCustomGeo(vertices, faces) {
+  const geo = new THREE.BufferGeometry();
+  const verts = [];
+  for (const f of faces) {
+    for (const i of f) verts.push(...vertices[i]);
+  }
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
+  geo.computeVertexNormals();
+  return geo;
+}
+
+function addWheel(g, x, y, z, r) {
+  const tire = new THREE.Mesh(
+    new THREE.CylinderGeometry(r, r, 0.18, 8),
+    fmat(0x1a1a1a)
+  );
+  tire.rotation.z = Math.PI / 2;
+  tire.position.set(x, y, z);
+  tire.castShadow = true;
+  g.add(tire);
+}
+
+function addMesh(g, geo, m, x, y, z, rx, ry, rz) {
+  const mesh = new THREE.Mesh(geo, m);
+  mesh.position.set(x, y, z);
+  if (rx !== undefined) mesh.rotation.x = rx;
+  if (ry !== undefined) mesh.rotation.y = ry;
+  if (rz !== undefined) mesh.rotation.z = rz;
+  mesh.castShadow = true;
+  g.add(mesh);
+  return mesh;
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+// A — ANGULAR WEDGE
+// Sharp triangular nose converging to a point, hex-ish body cross section
+// ═════════════════════════════════════════════════════════════════════════
+
+createScene('scene-a', (g) => {
+  const red = fmat(0xdd2222);
+  const dark = fmat(0x222222);
+  const white = fmat(0xeeeeee);
+
+  // Body: hex cross section, extruded along Z, tapered
+  // Vertices indexed: 6 at rear (z=+0.9), 6 at cockpit (z=0), 6 at nose base (z=-1.0)
+  // Hex vertices (x, y): top center, upper left, lower left, bottom center, lower right, upper right
+  const rearHex = [
+    [0, 0.55],     // top
+    [-0.32, 0.42], // upper-left
+    [-0.32, 0.2],  // lower-left
+    [0, 0.1],      // bottom
+    [0.32, 0.2],   // lower-right
+    [0.32, 0.42],  // upper-right
+  ];
+  const midHex = [
+    [0, 0.5],
+    [-0.38, 0.38],
+    [-0.38, 0.2],
+    [0, 0.12],
+    [0.38, 0.2],
+    [0.38, 0.38],
+  ];
+  const noseHex = [
+    [0, 0.35],
+    [-0.14, 0.3],
+    [-0.14, 0.2],
+    [0, 0.17],
+    [0.14, 0.2],
+    [0.14, 0.3],
+  ];
+
+  const verts = [];
+  // rear (z=+0.9)
+  for (const [x, y] of rearHex) verts.push([x, y, 0.9]);
+  // mid (z=0)
+  for (const [x, y] of midHex) verts.push([x, y, 0]);
+  // nose base (z=-0.9)
+  for (const [x, y] of noseHex) verts.push([x, y, -0.9]);
+  // nose tip (single vertex)
+  verts.push([0, 0.25, -1.8]);
+
+  // Faces: quads between each ring, then hexagonal rear/nose-tip triangles
+  const faces = [];
+  // Rear → mid (6 quads = 12 tris)
+  for (let i = 0; i < 6; i++) {
+    const j = (i + 1) % 6;
+    faces.push([i, j, j + 6]);
+    faces.push([i, j + 6, i + 6]);
+  }
+  // Mid → nose base (6 quads = 12 tris)
+  for (let i = 0; i < 6; i++) {
+    const j = (i + 1) % 6;
+    faces.push([i + 6, j + 6, j + 12]);
+    faces.push([i + 6, j + 12, i + 12]);
+  }
+  // Nose base → tip (6 triangles)
+  const tip = 18;
+  for (let i = 0; i < 6; i++) {
+    const j = (i + 1) % 6;
+    faces.push([i + 12, j + 12, tip]);
+  }
+  // Rear cap (fan from vertex 0)
+  for (let i = 1; i < 5; i++) {
+    faces.push([0, i + 1, i]);
+  }
+
+  const bodyGeo = buildCustomGeo(verts, faces);
+  addMesh(g, bodyGeo, red, 0, 0, 0);
+
+  // Side pods — angular wedges
+  for (const side of [-1, 1]) {
+    const podVerts = [
+      [0, 0.2, -0.4],      // front-top
+      [0, 0.1, -0.4],      // front-bottom
+      [side * 0.18, 0.22, -0.4],
+      [side * 0.18, 0.1, -0.4],
+      [0, 0.2, 0.6],
+      [0, 0.1, 0.6],
+      [side * 0.18, 0.22, 0.6],
+      [side * 0.18, 0.1, 0.6],
+    ];
+    const podFaces = [
+      [0, 2, 3], [0, 3, 1], // front
+      [4, 5, 7], [4, 7, 6], // back
+      [0, 4, 6], [0, 6, 2], // top
+      [1, 3, 7], [1, 7, 5], // bottom
+      [2, 6, 7], [2, 7, 3], // outer
+    ];
+    const podGeo = buildCustomGeo(podVerts, podFaces);
+    addMesh(g, podGeo, red, side * 0.38, 0, 0);
+  }
+
+  // Driver helmet (low-poly sphere)
+  addMesh(g, new THREE.IcosahedronGeometry(0.13, 0), white, 0, 0.65, -0.1);
+
+  // Airbox triangular prism
+  const abVerts = [
+    [-0.12, 0.55, 0.1], [0.12, 0.55, 0.1], [0, 0.78, 0.1],
+    [-0.12, 0.55, 0.4], [0.12, 0.55, 0.4], [0, 0.78, 0.4],
+  ];
+  const abFaces = [
+    [0, 2, 1], [3, 4, 5],
+    [0, 1, 4], [0, 4, 3],
+    [1, 2, 5], [1, 5, 4],
+    [2, 0, 3], [2, 3, 5],
+  ];
+  addMesh(g, buildCustomGeo(abVerts, abFaces), dark, 0, 0, 0);
+
+  // Rear wing
+  addMesh(g, new THREE.BoxGeometry(1.0, 0.04, 0.2), dark, 0, 0.75, 1.1);
+  addMesh(g, new THREE.BoxGeometry(0.03, 0.28, 0.25), dark, -0.5, 0.61, 1.1);
+  addMesh(g, new THREE.BoxGeometry(0.03, 0.28, 0.25), dark, 0.5, 0.61, 1.1);
+
+  // Front wing
+  addMesh(g, new THREE.BoxGeometry(0.9, 0.04, 0.15), dark, 0, 0.2, -1.95);
+  addMesh(g, new THREE.BoxGeometry(0.03, 0.15, 0.2), dark, -0.44, 0.23, -1.95);
+  addMesh(g, new THREE.BoxGeometry(0.03, 0.15, 0.2), dark, 0.44, 0.23, -1.95);
+
+  // Wheels
+  addWheel(g, -0.7, 0.22, -1.15, 0.26);
+  addWheel(g, 0.7, 0.22, -1.15, 0.26);
+  addWheel(g, -0.75, 0.26, 0.85, 0.3);
+  addWheel(g, 0.75, 0.26, 0.85, 0.3);
+});
+
+// ═════════════════════════════════════════════════════════════════════════
+// B — TRAPEZOIDAL PANELS
+// Body with clearly visible flat panels at different angles
+// ═════════════════════════════════════════════════════════════════════════
+
+createScene('scene-b', (g) => {
+  const red = fmat(0xdd2222);
+  const dark = fmat(0x222222);
+  const white = fmat(0xeeeeee);
+
+  // Trapezoidal body — 4-sided cross section (wider bottom, narrower top)
+  // Rear cross section (z=+0.9)
+  const rearTop = 0.55, rearBot = 0.12;
+  const rearHalfTop = 0.2, rearHalfBot = 0.4;
+  // Cockpit cross section (z=-0.1) — widest
+  const midTop = 0.52, midBot = 0.12;
+  const midHalfTop = 0.22, midHalfBot = 0.44;
+  // Nose-base cross section (z=-1.1)
+  const nbTop = 0.32, nbBot = 0.15;
+  const nbHalfTop = 0.08, nbHalfBot = 0.16;
+  // Nose tip (z=-2.0)
+  const tipY = 0.22;
+
+  const verts = [
+    // Rear (0-3): top-left, top-right, bottom-right, bottom-left
+    [-rearHalfTop, rearTop, 0.9], [rearHalfTop, rearTop, 0.9],
+    [rearHalfBot, rearBot, 0.9], [-rearHalfBot, rearBot, 0.9],
+    // Mid (4-7)
+    [-midHalfTop, midTop, -0.1], [midHalfTop, midTop, -0.1],
+    [midHalfBot, midBot, -0.1], [-midHalfBot, midBot, -0.1],
+    // Nose base (8-11)
+    [-nbHalfTop, nbTop, -1.1], [nbHalfTop, nbTop, -1.1],
+    [nbHalfBot, nbBot, -1.1], [-nbHalfBot, nbBot, -1.1],
+    // Nose tip (12)
+    [0, tipY, -2.0],
+  ];
+  const faces = [
+    // Rear → mid
+    [0, 4, 5], [0, 5, 1], // top
+    [1, 5, 6], [1, 6, 2], // right
+    [2, 6, 7], [2, 7, 3], // bottom
+    [3, 7, 4], [3, 4, 0], // left
+    // Mid → nose base
+    [4, 8, 9], [4, 9, 5],
+    [5, 9, 10], [5, 10, 6],
+    [6, 10, 11], [6, 11, 7],
+    [7, 11, 8], [7, 8, 4],
+    // Nose base → tip
+    [8, 12, 9], [9, 12, 10], [10, 12, 11], [11, 12, 8],
+    // Rear cap
+    [0, 1, 2], [0, 2, 3],
+  ];
+  addMesh(g, buildCustomGeo(verts, faces), red, 0, 0, 0);
+
+  // Side pods — angled triangular prism
+  for (const side of [-1, 1]) {
+    const pv = [
+      [side * 0.25, 0.1, -0.5],   // front bottom inner
+      [side * 0.6, 0.1, -0.2],    // front bottom outer
+      [side * 0.25, 0.28, -0.5],  // front top inner
+      [side * 0.6, 0.25, -0.2],   // front top outer
+      [side * 0.25, 0.1, 0.7],    // rear bottom inner
+      [side * 0.55, 0.1, 0.6],    // rear bottom outer
+      [side * 0.25, 0.28, 0.7],   // rear top inner
+      [side * 0.55, 0.25, 0.6],   // rear top outer
+    ];
+    const pf = [
+      [0, 2, 3], [0, 3, 1], // front angled panel
+      [4, 5, 7], [4, 7, 6], // rear
+      [0, 4, 6], [0, 6, 2], // inner
+      [1, 3, 7], [1, 7, 5], // outer
+      [2, 6, 7], [2, 7, 3], // top
+      [0, 1, 5], [0, 5, 4], // bottom
+    ];
+    if (side === -1) {
+      // Flip winding for left side
+      pf.forEach(f => f.reverse());
+    }
+    addMesh(g, buildCustomGeo(pv, pf), red, 0, 0, 0);
+  }
+
+  // Helmet
+  addMesh(g, new THREE.IcosahedronGeometry(0.13, 0), white, 0, 0.65, -0.1);
+
+  // Airbox — wedge
+  const abv = [
+    [-0.13, 0.52, 0.15], [0.13, 0.52, 0.15], [0, 0.8, 0.1],
+    [-0.13, 0.5, 0.45], [0.13, 0.5, 0.45], [0, 0.72, 0.45],
+  ];
+  const abf = [
+    [0, 2, 1], [3, 4, 5],
+    [0, 1, 4], [0, 4, 3],
+    [1, 2, 5], [1, 5, 4],
+    [2, 0, 3], [2, 3, 5],
+  ];
+  addMesh(g, buildCustomGeo(abv, abf), dark, 0, 0, 0);
+
+  // Rear wing
+  addMesh(g, new THREE.BoxGeometry(1.0, 0.04, 0.2), dark, 0, 0.75, 1.1);
+  addMesh(g, new THREE.BoxGeometry(0.03, 0.28, 0.25), dark, -0.5, 0.61, 1.1);
+  addMesh(g, new THREE.BoxGeometry(0.03, 0.28, 0.25), dark, 0.5, 0.61, 1.1);
+  // Front wing
+  addMesh(g, new THREE.BoxGeometry(0.9, 0.04, 0.15), dark, 0, 0.18, -2.1);
+  addMesh(g, new THREE.BoxGeometry(0.03, 0.15, 0.2), dark, -0.44, 0.22, -2.1);
+  addMesh(g, new THREE.BoxGeometry(0.03, 0.15, 0.2), dark, 0.44, 0.22, -2.1);
+
+  // Wheels
+  addWheel(g, -0.7, 0.22, -1.2, 0.26);
+  addWheel(g, 0.7, 0.22, -1.2, 0.26);
+  addWheel(g, -0.78, 0.26, 0.85, 0.3);
+  addWheel(g, 0.78, 0.26, 0.85, 0.3);
+});
+
+// ═════════════════════════════════════════════════════════════════════════
+// C — DIAMOND SPINE
+// Sharp raised spine along top, sloped sides meeting at a crease
+// ═════════════════════════════════════════════════════════════════════════
+
+createScene('scene-c', (g) => {
+  const red = fmat(0xdd2222);
+  const dark = fmat(0x222222);
+  const white = fmat(0xeeeeee);
+
+  // Cross-section: 4 vertices per ring — spine top, left shoulder, right shoulder, bottom
+  // Creates a diamond/kite shape
+  const makeRing = (z, spineY, shoulderY, halfW, botY) => [
+    [0, spineY, z],           // 0: top spine
+    [-halfW, shoulderY, z],   // 1: left shoulder
+    [halfW, shoulderY, z],    // 2: right shoulder
+    [0, botY, z],             // 3: bottom (kept flat)
+  ];
+
+  const r1 = makeRing(0.9, 0.55, 0.4, 0.32, 0.12);  // rear
+  const r2 = makeRing(0, 0.58, 0.38, 0.42, 0.12);   // mid
+  const r3 = makeRing(-1.1, 0.38, 0.28, 0.18, 0.15); // nose base
+
+  const verts = [...r1, ...r2, ...r3, [0, 0.2, -2.0]]; // tip at index 12
+  const faces = [];
+  // Between rings (4 quads = 8 tris each)
+  for (const [a, b] of [[0, 4], [4, 8]]) {
+    // a..a+3 → b..b+3
+    faces.push([a, a + 1, b + 1]); faces.push([a, b + 1, b]); // left: spine→shoulder
+    faces.push([a + 1, a + 3, b + 3]); faces.push([a + 1, b + 3, b + 1]); // left-side
+    faces.push([a + 3, a + 2, b + 2]); faces.push([a + 3, b + 2, b + 3]); // right-side
+    faces.push([a + 2, a, b]); faces.push([a + 2, b, b + 2]); // right: shoulder→spine
+  }
+  // Nose base → tip (4 triangles)
+  const tip = 12;
+  faces.push([8, 9, tip]);
+  faces.push([9, 11, tip]);
+  faces.push([11, 10, tip]);
+  faces.push([10, 8, tip]);
+  // Rear cap
+  faces.push([0, 2, 3]); faces.push([0, 3, 1]);
+
+  addMesh(g, buildCustomGeo(verts, faces), red, 0, 0, 0);
+
+  // Side pods — wedges with sloped top
+  for (const side of [-1, 1]) {
+    const pv = [
+      [side * 0.35, 0.12, -0.5],
+      [side * 0.6, 0.12, -0.2],
+      [side * 0.35, 0.3, -0.5],
+      [side * 0.55, 0.22, -0.2],
+      [side * 0.35, 0.12, 0.7],
+      [side * 0.5, 0.12, 0.6],
+      [side * 0.35, 0.3, 0.7],
+      [side * 0.48, 0.22, 0.6],
+    ];
+    const pf = [
+      [0, 2, 3], [0, 3, 1],
+      [4, 5, 7], [4, 7, 6],
+      [0, 4, 6], [0, 6, 2],
+      [1, 3, 7], [1, 7, 5],
+      [2, 6, 7], [2, 7, 3],
+      [0, 1, 5], [0, 5, 4],
+    ];
+    if (side === -1) pf.forEach(f => f.reverse());
+    addMesh(g, buildCustomGeo(pv, pf), red, 0, 0, 0);
+  }
+
+  // Helmet
+  addMesh(g, new THREE.IcosahedronGeometry(0.13, 0), white, 0, 0.7, -0.1);
+
+  // Airbox — diamond prism above spine
+  const abv = [
+    [0, 0.85, 0.1], [-0.12, 0.7, 0.1], [0.12, 0.7, 0.1], [0, 0.6, 0.1],
+    [0, 0.8, 0.4], [-0.1, 0.68, 0.4], [0.1, 0.68, 0.4], [0, 0.6, 0.4],
+  ];
+  const abf = [
+    [0, 2, 1], [0, 3, 2], [0, 1, 3],
+    [4, 5, 6], [4, 6, 7], [4, 7, 5],
+    [0, 1, 5], [0, 5, 4],
+    [1, 3, 7], [1, 7, 5],
+    [3, 2, 6], [3, 6, 7],
+    [2, 0, 4], [2, 4, 6],
+  ];
+  addMesh(g, buildCustomGeo(abv, abf), dark, 0, 0, 0);
+
+  // Rear wing
+  addMesh(g, new THREE.BoxGeometry(1.0, 0.04, 0.2), dark, 0, 0.78, 1.1);
+  addMesh(g, new THREE.BoxGeometry(0.03, 0.3, 0.25), dark, -0.5, 0.62, 1.1);
+  addMesh(g, new THREE.BoxGeometry(0.03, 0.3, 0.25), dark, 0.5, 0.62, 1.1);
+  // Front wing
+  addMesh(g, new THREE.BoxGeometry(0.9, 0.04, 0.15), dark, 0, 0.2, -2.1);
+  addMesh(g, new THREE.BoxGeometry(0.03, 0.15, 0.2), dark, -0.44, 0.23, -2.1);
+  addMesh(g, new THREE.BoxGeometry(0.03, 0.15, 0.2), dark, 0.44, 0.23, -2.1);
+
+  addWheel(g, -0.7, 0.22, -1.2, 0.26);
+  addWheel(g, 0.7, 0.22, -1.2, 0.26);
+  addWheel(g, -0.78, 0.26, 0.85, 0.3);
+  addWheel(g, 0.78, 0.26, 0.85, 0.3);
+});
+
+// ═════════════════════════════════════════════════════════════════════════
+// D — STEALTH FACET
+// Many small angled panels, fighter-jet inspired
+// ═════════════════════════════════════════════════════════════════════════
+
+createScene('scene-d', (g) => {
+  const red = fmat(0xdd2222);
+  const dark = fmat(0x222222);
+  const white = fmat(0xeeeeee);
+
+  // 5-sided cross-section: top, upper-shoulders (2), lower-sides (2), bottom (flat)
+  const makeRing = (z, config) => {
+    const [topY, shoulderH, sideH, halfTop, halfShoulder, halfSide, botY] = config;
+    return [
+      [0, topY, z],                          // 0: top
+      [-halfShoulder, shoulderH, z],         // 1: upper-left
+      [halfShoulder, shoulderH, z],          // 2: upper-right
+      [-halfSide, sideH, z],                 // 3: lower-left
+      [halfSide, sideH, z],                  // 4: lower-right
+      [-halfSide * 0.6, botY, z],            // 5: bottom-left
+      [halfSide * 0.6, botY, z],             // 6: bottom-right
+    ];
+  };
+  // [topY, shoulderH, sideH, halfTop(unused), halfShoulder, halfSide, botY]
+  const rear = makeRing(0.9, [0.5, 0.4, 0.22, 0, 0.28, 0.38, 0.1]);
+  const mid = makeRing(-0.1, [0.52, 0.4, 0.22, 0, 0.3, 0.42, 0.1]);
+  const nb = makeRing(-1.1, [0.3, 0.25, 0.17, 0, 0.1, 0.17, 0.12]);
+
+  const verts = [...rear, ...mid, ...nb, [0, 0.2, -2.0]]; // tip = 21
+
+  const faces = [];
+  // Connect rings: each ring has 7 vertices. Indices: 0..6 rear, 7..13 mid, 14..20 nb
+  const connect = (a, b) => {
+    // Ring order top → upper-L → lower-L → bottom-L → bottom-R → lower-R → upper-R → back to top
+    const order = [0, 1, 3, 5, 6, 4, 2];
+    for (let i = 0; i < order.length; i++) {
+      const ii = order[i], jj = order[(i + 1) % order.length];
+      faces.push([a + ii, a + jj, b + jj]);
+      faces.push([a + ii, b + jj, b + ii]);
+    }
+  };
+  connect(0, 7);
+  connect(7, 14);
+
+  // Nose base → tip: 7 triangles
+  const orderN = [0, 1, 3, 5, 6, 4, 2];
+  const tip = 21;
+  for (let i = 0; i < orderN.length; i++) {
+    const ii = orderN[i], jj = orderN[(i + 1) % orderN.length];
+    faces.push([14 + ii, 14 + jj, tip]);
+  }
+
+  // Rear cap (fan from top vertex)
+  const capOrder = [0, 1, 3, 5, 6, 4, 2];
+  for (let i = 1; i < capOrder.length - 1; i++) {
+    faces.push([capOrder[0], capOrder[i + 1], capOrder[i]]);
+  }
+
+  addMesh(g, buildCustomGeo(verts, faces), red, 0, 0, 0);
+
+  // Angular side pods with multiple facets
+  for (const side of [-1, 1]) {
+    const pv = [
+      [side * 0.35, 0.12, -0.4],   // 0 front-bot-inner
+      [side * 0.6, 0.12, -0.1],    // 1 front-bot-outer
+      [side * 0.35, 0.25, -0.4],   // 2 front-top-inner
+      [side * 0.58, 0.25, -0.1],   // 3 front-top-outer
+      [side * 0.35, 0.35, -0.1],   // 4 front-peak-inner
+      [side * 0.52, 0.35, -0.1],   // 5 front-peak-outer (peak)
+      [side * 0.35, 0.12, 0.7],    // 6 rear-bot-inner
+      [side * 0.5, 0.12, 0.65],    // 7 rear-bot-outer
+      [side * 0.35, 0.25, 0.7],    // 8 rear-top-inner
+      [side * 0.48, 0.25, 0.65],   // 9 rear-top-outer
+    ];
+    const pf = [
+      // Front panel (triangle under peak)
+      [0, 2, 3], [0, 3, 1],
+      // Top-front angled panel up to peak
+      [2, 4, 5], [2, 5, 3],
+      // Top horizontal panel from peak back
+      [4, 8, 9], [4, 9, 5],
+      // Back panel
+      [6, 7, 9], [6, 9, 8],
+      // Inner wall
+      [0, 6, 8], [0, 8, 2], [2, 8, 4],
+      // Outer walls
+      [1, 3, 5], [1, 5, 9], [1, 9, 7],
+      // Bottom
+      [0, 1, 7], [0, 7, 6],
+    ];
+    if (side === -1) pf.forEach(f => f.reverse());
+    addMesh(g, buildCustomGeo(pv, pf), red, 0, 0, 0);
+  }
+
+  // Helmet
+  addMesh(g, new THREE.IcosahedronGeometry(0.13, 0), white, 0, 0.66, -0.1);
+
+  // Airbox (sharp triangular prism)
+  const abv = [
+    [-0.1, 0.56, 0.1], [0.1, 0.56, 0.1], [0, 0.78, 0.0],
+    [-0.1, 0.52, 0.4], [0.1, 0.52, 0.4], [0, 0.72, 0.4],
+  ];
+  const abf = [
+    [0, 2, 1], [3, 4, 5],
+    [0, 1, 4], [0, 4, 3],
+    [1, 2, 5], [1, 5, 4],
+    [2, 0, 3], [2, 3, 5],
+  ];
+  addMesh(g, buildCustomGeo(abv, abf), dark, 0, 0, 0);
+
+  // Rear wing
+  addMesh(g, new THREE.BoxGeometry(1.0, 0.04, 0.2), dark, 0, 0.72, 1.1);
+  addMesh(g, new THREE.BoxGeometry(0.03, 0.26, 0.25), dark, -0.5, 0.6, 1.1);
+  addMesh(g, new THREE.BoxGeometry(0.03, 0.26, 0.25), dark, 0.5, 0.6, 1.1);
+  // Front wing
+  addMesh(g, new THREE.BoxGeometry(0.9, 0.04, 0.15), dark, 0, 0.2, -2.1);
+  addMesh(g, new THREE.BoxGeometry(0.03, 0.15, 0.2), dark, -0.44, 0.23, -2.1);
+  addMesh(g, new THREE.BoxGeometry(0.03, 0.15, 0.2), dark, 0.44, 0.23, -2.1);
+
+  addWheel(g, -0.7, 0.22, -1.2, 0.26);
+  addWheel(g, 0.7, 0.22, -1.2, 0.26);
+  addWheel(g, -0.78, 0.26, 0.85, 0.3);
+  addWheel(g, 0.78, 0.26, 0.85, 0.3);
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>F1 B — V3</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #0d0d14; color: #e0e0e0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+  h1 { text-align: center; padding: 24px 0 4px; font-size: 26px; color: #fff; }
+  .subtitle { text-align: center; color: #888; margin-bottom: 20px; font-size: 14px; }
+  .container { max-width: 720px; margin: 0 auto; padding: 0 20px 40px; }
+  .mockup { border: 2px solid #4ecdc4; border-radius: 12px; overflow: hidden; background: #161622; }
+  .mockup canvas { width: 100%; height: 460px; display: block; }
+  .label { padding: 14px 16px; background: #1a1a26; font-size: 13px; color: #ccc; }
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+</head>
+<body>
+
+<h1>F1 Trapezoidal — Extended Nose + Wing Struts</h1>
+<p class="subtitle">Nose flows into the front wing, rear wing connects to body via twin struts</p>
+
+<div class="container">
+  <div class="mockup">
+    <canvas id="scene"></canvas>
+    <div class="label">Nose extends to wing level, rear wing supported by struts from engine cover</div>
+  </div>
+</div>
+
+<script>
+function fmat(color) {
+  return new THREE.MeshPhongMaterial({ color, flatShading: true, shininess: 20, side: THREE.DoubleSide });
+}
+
+function buildCustomGeo(vertices, faces) {
+  const geo = new THREE.BufferGeometry();
+  const verts = [];
+  for (const f of faces) for (const i of f) verts.push(...vertices[i]);
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
+  geo.computeVertexNormals();
+  return geo;
+}
+
+function addMesh(g, geo, m, x, y, z, rx, ry, rz) {
+  const mesh = new THREE.Mesh(geo, m);
+  mesh.position.set(x, y, z);
+  if (rx !== undefined) mesh.rotation.x = rx;
+  if (ry !== undefined) mesh.rotation.y = ry;
+  if (rz !== undefined) mesh.rotation.z = rz;
+  mesh.castShadow = true;
+  g.add(mesh);
+  return mesh;
+}
+
+function addWheel(g, x, y, z, r) {
+  const tire = new THREE.Mesh(
+    new THREE.CylinderGeometry(r, r, 0.18, 8),
+    fmat(0x1a1a1a)
+  );
+  tire.rotation.z = Math.PI / 2;
+  tire.position.set(x, y, z);
+  tire.castShadow = true;
+  g.add(tire);
+}
+
+function addAxle(g, y, z, halfWidth, radius) {
+  const axle = new THREE.Mesh(
+    new THREE.CylinderGeometry(radius, radius, halfWidth * 2, 8),
+    fmat(0x888888)
+  );
+  axle.rotation.z = Math.PI / 2;
+  axle.position.set(0, y, z);
+  axle.castShadow = true;
+  g.add(axle);
+}
+
+const canvas = document.getElementById('scene');
+const w = canvas.clientWidth * 2, h = 920;
+canvas.width = w; canvas.height = h;
+
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+renderer.setSize(w, h, false);
+renderer.setClearColor(0x2a2a3a);
+renderer.shadowMap.enabled = true;
+
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(35, w / h, 0.1, 100);
+
+const sun = new THREE.DirectionalLight(0xffffff, 1.0);
+sun.position.set(5, 8, 5);
+sun.castShadow = true;
+scene.add(sun);
+scene.add(new THREE.AmbientLight(0x556688, 0.6));
+
+const ground = new THREE.Mesh(
+  new THREE.PlaneGeometry(20, 20),
+  new THREE.MeshLambertMaterial({ color: 0x3a3a48 })
+);
+ground.rotation.x = -Math.PI / 2;
+ground.receiveShadow = true;
+scene.add(ground);
+
+const g = new THREE.Group();
+const red = fmat(0xdd2222);
+const dark = fmat(0x222222);
+const white = fmat(0xeeeeee);
+
+// ── Main trapezoidal body ───────────────────────────────────────────────────
+// Cross sections along Z, each with top-left, top-right, bot-right, bot-left
+// EXTENDED: nose now reaches all the way to the front wing (z=-2.1)
+// The nose tapers and gets LOWER to blend into the wing plane
+const rearTop = 0.55, rearBot = 0.12, rearHT = 0.2, rearHB = 0.4;
+const midTop = 0.52, midBot = 0.12, midHT = 0.22, midHB = 0.44;
+const nbTop = 0.32, nbBot = 0.15, nbHT = 0.2, nbHB = 0.3;
+// Nose mid — narrower, sharper
+const nmTop = 0.22, nmBot = 0.16, nmHT = 0.1, nmHB = 0.14;
+// Nose end — stays narrow at the tip, extended FURTHER forward into/past the wing
+const neTop = 0.16, neBot = 0.14, neHT = 0.05, neHB = 0.07;
+
+const verts = [
+  // Rear (0-3)
+  [-rearHT, rearTop, 0.9], [rearHT, rearTop, 0.9],
+  [rearHB, rearBot, 0.9], [-rearHB, rearBot, 0.9],
+  // Mid (4-7)
+  [-midHT, midTop, -0.1], [midHT, midTop, -0.1],
+  [midHB, midBot, -0.1], [-midHB, midBot, -0.1],
+  // Nose base (8-11)
+  [-nbHT, nbTop, -1.1], [nbHT, nbTop, -1.1],
+  [nbHB, nbBot, -1.1], [-nbHB, nbBot, -1.1],
+  // Nose mid (12-15)
+  [-nmHT, nmTop, -1.65], [nmHT, nmTop, -1.65],
+  [nmHB, nmBot, -1.65], [-nmHB, nmBot, -1.65],
+  // Nose end — narrow tip stopping in the middle of the front wing
+  [-neHT, neTop, -2.15], [neHT, neTop, -2.15],
+  [neHB, neBot, -2.15], [-neHB, neBot, -2.15],
+];
+const faces = [
+  // Rear → mid
+  [0, 4, 5], [0, 5, 1],
+  [1, 5, 6], [1, 6, 2],
+  [2, 6, 7], [2, 7, 3],
+  [3, 7, 4], [3, 4, 0],
+  // Mid → nose base
+  [4, 8, 9], [4, 9, 5],
+  [5, 9, 10], [5, 10, 6],
+  [6, 10, 11], [6, 11, 7],
+  [7, 11, 8], [7, 8, 4],
+  // Nose base → nose mid
+  [8, 12, 13], [8, 13, 9],
+  [9, 13, 14], [9, 14, 10],
+  [10, 14, 15], [10, 15, 11],
+  [11, 15, 12], [11, 12, 8],
+  // Nose mid → nose end
+  [12, 16, 17], [12, 17, 13],
+  [13, 17, 18], [13, 18, 14],
+  [14, 18, 19], [14, 19, 15],
+  [15, 19, 16], [15, 16, 12],
+  // End cap at front wing
+  [16, 17, 18], [16, 18, 19],
+  // Rear cap
+  [0, 1, 2], [0, 2, 3],
+];
+addMesh(g, buildCustomGeo(verts, faces), red, 0, 0, 0);
+
+// ── Side pods ───────────────────────────────────────────────────────────────
+for (const side of [-1, 1]) {
+  const pv = [
+    [side * 0.25, 0.1, -0.5],
+    [side * 0.6, 0.1, -0.2],
+    [side * 0.25, 0.28, -0.5],
+    [side * 0.6, 0.25, -0.2],
+    [side * 0.25, 0.1, 0.7],
+    [side * 0.55, 0.1, 0.6],
+    [side * 0.25, 0.28, 0.7],
+    [side * 0.55, 0.25, 0.6],
+  ];
+  const pf = [
+    [0, 2, 3], [0, 3, 1],
+    [4, 5, 7], [4, 7, 6],
+    [0, 4, 6], [0, 6, 2],
+    [1, 3, 7], [1, 7, 5],
+    [2, 6, 7], [2, 7, 3],
+    [0, 1, 5], [0, 5, 4],
+  ];
+  if (side === -1) pf.forEach(f => f.reverse());
+  addMesh(g, buildCustomGeo(pv, pf), red, 0, 0, 0);
+}
+
+// ── Helmet ──────────────────────────────────────────────────────────────────
+addMesh(g, new THREE.IcosahedronGeometry(0.13, 0), white, 0, 0.65, -0.1);
+
+// ── Airbox ──────────────────────────────────────────────────────────────────
+const abv = [
+  [-0.13, 0.52, 0.15], [0.13, 0.52, 0.15], [0, 0.8, 0.1],
+  [-0.13, 0.5, 0.45], [0.13, 0.5, 0.45], [0, 0.72, 0.45],
+];
+const abf = [
+  [0, 2, 1], [3, 4, 5],
+  [0, 1, 4], [0, 4, 3],
+  [1, 2, 5], [1, 5, 4],
+  [2, 0, 3], [2, 3, 5],
+];
+addMesh(g, buildCustomGeo(abv, abf), dark, 0, 0, 0);
+
+// ── Central pylon — connects rear wing down into the middle of the body ────
+// Tall vertical fin: goes from deep inside the body (y=0.2) up to the wing (y=0.75)
+// and forward from the wing (z=1.1) to the middle of the body (z=0.2)
+const cpv = [
+  // Bottom-front (deep in body center, forward position)
+  [-0.05, 0.2, 0.2],  // 0
+  [0.05, 0.2, 0.2],   // 1
+  // Bottom-rear (under wing)
+  [-0.05, 0.2, 1.0],  // 2
+  [0.05, 0.2, 1.0],   // 3
+  // Top-front (at top of body, forward)
+  [-0.04, 0.55, 0.2], // 4
+  [0.04, 0.55, 0.2],  // 5
+  // Top-rear (at wing underside, centered)
+  [-0.04, 0.73, 1.1], // 6
+  [0.04, 0.73, 1.1],  // 7
+];
+const cpf = [
+  // Left face (x = -)
+  [0, 4, 6], [0, 6, 2],
+  // Right face (x = +)
+  [1, 3, 7], [1, 7, 5],
+  // Top slope (rises from front to back)
+  [4, 5, 7], [4, 7, 6],
+  // Bottom (horizontal, low in body)
+  [0, 2, 3], [0, 3, 1],
+  // Front cap
+  [0, 1, 5], [0, 5, 4],
+  // Rear cap
+  [2, 6, 7], [2, 7, 3],
+];
+addMesh(g, buildCustomGeo(cpv, cpf), dark, 0, 0, 0);
+
+// ── Rear wing (lifted up slightly to give strut clearance) ─────────────────
+addMesh(g, new THREE.BoxGeometry(1.0, 0.04, 0.2), dark, 0, 0.75, 1.1);
+addMesh(g, new THREE.BoxGeometry(0.03, 0.3, 0.25), dark, -0.5, 0.58, 1.1);
+addMesh(g, new THREE.BoxGeometry(0.03, 0.3, 0.25), dark, 0.5, 0.58, 1.1);
+
+// ── Front wing ──────────────────────────────────────────────────────────────
+addMesh(g, new THREE.BoxGeometry(0.9, 0.04, 0.15), dark, 0, 0.15, -2.15);
+addMesh(g, new THREE.BoxGeometry(0.03, 0.12, 0.2), dark, -0.44, 0.18, -2.15);
+addMesh(g, new THREE.BoxGeometry(0.03, 0.12, 0.2), dark, 0.44, 0.18, -2.15);
+
+// ── Axles ───────────────────────────────────────────────────────────────────
+addAxle(g, 0.22, -1.2, 0.7, 0.04);
+addAxle(g, 0.26, 0.85, 0.78, 0.05);
+
+// ── Wheels ──────────────────────────────────────────────────────────────────
+addWheel(g, -0.7, 0.22, -1.2, 0.26);
+addWheel(g, 0.7, 0.22, -1.2, 0.26);
+addWheel(g, -0.78, 0.26, 0.85, 0.3);
+addWheel(g, 0.78, 0.26, 0.85, 0.3);
+
+scene.add(g);
+
+let t = 0;
+function animate() {
+  requestAnimationFrame(animate);
+  t += 0.008;
+  camera.position.x = Math.sin(t) * 5;
+  camera.position.z = Math.cos(t) * 5;
+  camera.position.y = 1.8;
+  camera.lookAt(0, 0.3, 0);
+  renderer.render(scene, camera);
+}
+animate();
+</script>
+</body>
+</html>

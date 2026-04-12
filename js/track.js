@@ -160,13 +160,21 @@ export function generateTrack(seed) {
       return true;
     }
 
-    // --- Place grid (P1) tile then start/finish tile, heading South ---
+    // --- Place two grid tiles (8-car starting grid) heading South ---
+    // grid2: back of the grid (rows 3-4, positions 5-8)
+    // grid1: front of the grid, finish line at its exit
     const gridTile = makeStraight(0, 0, DIR_S);
     gridTile.type = 'grid';
     tiles.push(gridTile);
     markCells(gridTile.cells);
 
-    const startTile = makeStraight(gridTile.exitGx, gridTile.exitGy, DIR_S);
+    // Second grid tile right after — together they make the 2x4 starting grid
+    const gridTile2 = makeStraight(gridTile.exitGx, gridTile.exitGy, DIR_S);
+    gridTile2.type = 'grid';
+    tiles.push(gridTile2);
+    markCells(gridTile2.cells);
+
+    const startTile = makeStraight(gridTile2.exitGx, gridTile2.exitGy, DIR_S);
     startTile.type = 'start';
     tiles.push(startTile);
     markCells(startTile.cells);

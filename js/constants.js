@@ -26,9 +26,9 @@ export const CAR_FRICTION = 0.5;
 export const WALL_SPEED_CURVE_EXPONENT = 2;
 export const CRASH_IMPACT_THRESHOLD = 0.85;
 
-// Track generation
-export const MIN_TRACK_TILES = 28;
-export const MAX_TRACK_TILES = 34;
+// Track generation — longer tracks for Formula racing
+export const MIN_TRACK_TILES = 38;
+export const MAX_TRACK_TILES = 44;
 export const WALL_THICKNESS = 8;     // visual wall thickness in px
 export const WALL_SEGMENTS_PER_CURVE = 8; // edge segments to approximate curve arcs
 
@@ -36,12 +36,39 @@ export const WALL_SEGMENTS_PER_CURVE = 8; // edge segments to approximate curve 
 export const FIXED_DT = 1 / 60;
 export const COUNTDOWN_SECONDS = 3;
 
-// Race
-export const NUM_CARS = 4;
+// Race — 8 cars (1 player + 7 AI)
+export const NUM_CARS = 8;
 export const NUM_LAPS = 3;
 
-// AI
-export const AI_SKILLS = [0.95, 0.98, 1.00]; // top AI matches player MAX_SPEED
+// Championship points by finishing position (index 0 = 1st place)
+export const POINTS = [25, 18, 15, 12, 10, 8, 6, 4];
+
+// Season length options (number of races per season)
+export const SEASON_LENGTHS = { short: 5, medium: 10, long: 20 };
+
+// Formula tiers — progressively faster cars
+// speedMult scales MAX_SPEED and ACCELERATION
+export const TIERS = [
+  { id: 'F4', name: 'Formula 4', speedMult: 1.00 },
+  { id: 'F3', name: 'Formula 3', speedMult: 1.15 },
+  { id: 'F2', name: 'Formula 2', speedMult: 1.30 },
+  { id: 'F1', name: 'Formula 1', speedMult: 1.50 },
+];
+
+// Colors for the 8 cars on the grid (player = index 0, AI = 1-7)
+export const CAR_COLORS = [
+  0x2266dd, // blue (player)
+  0xdd2222, // red
+  0x22aa22, // green
+  0xddaa22, // yellow
+  0xaa44cc, // purple
+  0xff6611, // orange
+  0xffffff, // white
+  0x22ccbb, // teal
+];
+
+// AI — 7 AI cars with varying skill
+export const AI_SKILLS = [0.90, 0.93, 0.95, 0.97, 0.98, 0.99, 1.00];
 export const AI_LOOKAHEAD_WAYPOINTS = 3;     // unused by ray-cast AI, kept for API
 export const AI_CURVE_BRAKE_FACTOR = 0.6;    // unused by ray-cast AI
 

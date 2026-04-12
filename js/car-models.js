@@ -1,395 +1,208 @@
 import { PX_TO_WORLD } from './constants.js';
 
-export const CAR_STYLE_NAMES = [
-  'GT3 Classic',
-  'Muscle GT',
-  'Rally GT',
-  'LMP',
-  'JDM Street',
-  'Retro GT',
-];
+// Single F1-style car model (Trapezoidal/v7 from brainstorm session).
+// All cars on the grid use this builder with different body colors.
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
+export const CAR_STYLE_NAMES = ['Formula'];
 
-function mat(color) {
-  return new THREE.MeshLambertMaterial({ color });
+// ── Helpers ────────────────────────────────────────────────────────────────
+
+function fmat(color) {
+  return new THREE.MeshPhongMaterial({
+    color, flatShading: true, shininess: 20, side: THREE.DoubleSide,
+  });
 }
 
-function glassMat() {
-  return new THREE.MeshLambertMaterial({ color: 0x88bbff, transparent: true, opacity: 0.6 });
+function buildCustomGeo(vertices, faces) {
+  const geo = new THREE.BufferGeometry();
+  const verts = [];
+  for (const f of faces) for (const i of f) verts.push(...vertices[i]);
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
+  geo.computeVertexNormals();
+  return geo;
 }
 
-function darkMat() {
-  return new THREE.MeshLambertMaterial({ color: 0x333333 });
+function addMesh(g, geo, mat, x, y, z) {
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.position.set(x, y, z);
+  mesh.castShadow = true;
+  g.add(mesh);
+  return mesh;
 }
 
-function box(w, h, d) {
-  return new THREE.BoxGeometry(w, h, d);
-}
+// ── F1 Car Model ───────────────────────────────────────────────────────────
 
-function cyl(rTop, rBot, height, seg) {
-  return new THREE.CylinderGeometry(rTop, rBot, height, seg || 8);
-}
+function buildFormula(color) {
+  const g = new THREE.Group();
+  const body = fmat(color);
+  const dark = fmat(0x222222);
+  const white = fmat(0xeeeeee);
+  const silver = fmat(0x888888);
 
-function addMesh(group, geo, material, x, y, z, castShadow) {
-  const m = new THREE.Mesh(geo, material);
-  m.position.set(x, y, z);
-  if (castShadow !== false) m.castShadow = true;
-  group.add(m);
-  return m;
-}
+  // Cross-section parameters along Z (rear at +Z, nose at -Z)
+  const rearTop = 0.55, rearBot = 0.12, rearHT = 0.2, rearHB = 0.4;
+  const midTop = 0.52, midBot = 0.12, midHT = 0.22, midHB = 0.44;
+  const nbTop = 0.32, nbBot = 0.15, nbHT = 0.2, nbHB = 0.3;
+  const nmTop = 0.22, nmBot = 0.16, nmHT = 0.1, nmHB = 0.14;
+  const neTop = 0.16, neBot = 0.14, neHT = 0.05, neHB = 0.07;
 
-/**
- * Add 4 wheels at the given positions and store them in userData.wheels.
- */
-function addWheels(group, halfWidth, wheelY, frontZ, rearZ) {
-  const wheelGeo = cyl(0.18, 0.18, 0.12, 8);
-  const wheelMat = mat(0x1a1a1a);
-  const wheels = [];
-
-  const positions = [
-    [-halfWidth, wheelY, frontZ],
-    [ halfWidth, wheelY, frontZ],
-    [-halfWidth, wheelY, rearZ],
-    [ halfWidth, wheelY, rearZ],
+  const verts = [
+    // Rear (0-3)
+    [-rearHT, rearTop, 0.9], [rearHT, rearTop, 0.9],
+    [rearHB, rearBot, 0.9], [-rearHB, rearBot, 0.9],
+    // Mid (4-7)
+    [-midHT, midTop, -0.1], [midHT, midTop, -0.1],
+    [midHB, midBot, -0.1], [-midHB, midBot, -0.1],
+    // Nose base (8-11)
+    [-nbHT, nbTop, -1.1], [nbHT, nbTop, -1.1],
+    [nbHB, nbBot, -1.1], [-nbHB, nbBot, -1.1],
+    // Nose mid (12-15)
+    [-nmHT, nmTop, -1.35], [nmHT, nmTop, -1.35],
+    [nmHB, nmBot, -1.35], [-nmHB, nmBot, -1.35],
+    // Nose end at front wing (16-19)
+    [-neHT, neTop, -1.55], [neHT, neTop, -1.55],
+    [neHB, neBot, -1.55], [-neHB, neBot, -1.55],
   ];
+  const faces = [
+    // Rear → mid
+    [0, 4, 5], [0, 5, 1],
+    [1, 5, 6], [1, 6, 2],
+    [2, 6, 7], [2, 7, 3],
+    [3, 7, 4], [3, 4, 0],
+    // Mid → nose base
+    [4, 8, 9], [4, 9, 5],
+    [5, 9, 10], [5, 10, 6],
+    [6, 10, 11], [6, 11, 7],
+    [7, 11, 8], [7, 8, 4],
+    // Nose base → nose mid
+    [8, 12, 13], [8, 13, 9],
+    [9, 13, 14], [9, 14, 10],
+    [10, 14, 15], [10, 15, 11],
+    [11, 15, 12], [11, 12, 8],
+    // Nose mid → nose end
+    [12, 16, 17], [12, 17, 13],
+    [13, 17, 18], [13, 18, 14],
+    [14, 18, 19], [14, 19, 15],
+    [15, 19, 16], [15, 16, 12],
+    // End cap
+    [16, 17, 18], [16, 18, 19],
+    // Rear cap
+    [0, 1, 2], [0, 2, 3],
+  ];
+  addMesh(g, buildCustomGeo(verts, faces), body, 0, 0, 0);
 
-  for (const [x, y, z] of positions) {
-    const wheel = new THREE.Mesh(wheelGeo, wheelMat);
-    wheel.position.set(x, y, z);
-    wheel.rotation.z = Math.PI / 2;
-    wheel.castShadow = true;
-    group.add(wheel);
-    wheels.push(wheel);
+  // Side pods (left and right)
+  for (const side of [-1, 1]) {
+    const pv = [
+      [side * 0.25, 0.1, -0.5],
+      [side * 0.6, 0.1, -0.2],
+      [side * 0.25, 0.28, -0.5],
+      [side * 0.6, 0.25, -0.2],
+      [side * 0.25, 0.1, 0.7],
+      [side * 0.55, 0.1, 0.6],
+      [side * 0.25, 0.28, 0.7],
+      [side * 0.55, 0.25, 0.6],
+    ];
+    const pf = [
+      [0, 2, 3], [0, 3, 1],
+      [4, 5, 7], [4, 7, 6],
+      [0, 4, 6], [0, 6, 2],
+      [1, 3, 7], [1, 7, 5],
+      [2, 6, 7], [2, 7, 3],
+      [0, 1, 5], [0, 5, 4],
+    ];
+    if (side === -1) pf.forEach(f => f.reverse());
+    addMesh(g, buildCustomGeo(pv, pf), body, 0, 0, 0);
   }
 
-  group.userData.wheels = wheels;
-}
+  // Driver helmet
+  addMesh(g, new THREE.IcosahedronGeometry(0.13, 0), white, 0, 0.65, -0.1);
 
-// ---------------------------------------------------------------------------
-// Style 0 — GT3 Classic (Porsche 911 silhouette)
-// ---------------------------------------------------------------------------
+  // Airbox (wedge behind driver)
+  const abv = [
+    [-0.13, 0.52, 0.15], [0.13, 0.52, 0.15], [0, 0.8, 0.1],
+    [-0.13, 0.5, 0.45], [0.13, 0.5, 0.45], [0, 0.72, 0.45],
+  ];
+  const abf = [
+    [0, 2, 1], [3, 4, 5],
+    [0, 1, 4], [0, 4, 3],
+    [1, 2, 5], [1, 5, 4],
+    [2, 0, 3], [2, 3, 5],
+  ];
+  addMesh(g, buildCustomGeo(abv, abf), dark, 0, 0, 0);
 
-function buildGT3Classic(color) {
-  const g = new THREE.Group();
-  const bodyMat = mat(color);
-  const glass = glassMat();
+  // Central pylon: body → rear wing underside (shark fin style)
+  const cpv = [
+    [-0.05, 0.2, 0.2], [0.05, 0.2, 0.2],
+    [-0.05, 0.2, 1.0], [0.05, 0.2, 1.0],
+    [-0.04, 0.55, 0.2], [0.04, 0.55, 0.2],
+    [-0.04, 0.73, 1.1], [0.04, 0.73, 1.1],
+  ];
+  const cpf = [
+    [0, 4, 6], [0, 6, 2],    // left face
+    [1, 3, 7], [1, 7, 5],    // right face
+    [4, 5, 7], [4, 7, 6],    // top
+    [0, 2, 3], [0, 3, 1],    // bottom
+    [0, 1, 5], [0, 5, 4],    // front cap
+    [2, 6, 7], [2, 7, 3],    // rear cap
+  ];
+  addMesh(g, buildCustomGeo(cpv, cpf), dark, 0, 0, 0);
 
-  // Lower body — wide, low slab
-  addMesh(g, box(1.2, 0.22, 2.4), bodyMat, 0, 0.2, 0);
+  // Rear wing
+  addMesh(g, new THREE.BoxGeometry(1.0, 0.04, 0.2), dark, 0, 0.75, 1.1);
+  addMesh(g, new THREE.BoxGeometry(0.03, 0.3, 0.25), dark, -0.5, 0.58, 1.1);
+  addMesh(g, new THREE.BoxGeometry(0.03, 0.3, 0.25), dark, 0.5, 0.58, 1.1);
 
-  // Hood — slopes down toward the front
-  addMesh(g, box(1.1, 0.14, 0.8), bodyMat, 0, 0.32, -0.7);
+  // Front wing (close to front wheels)
+  addMesh(g, new THREE.BoxGeometry(0.9, 0.04, 0.15), dark, 0, 0.15, -1.55);
+  addMesh(g, new THREE.BoxGeometry(0.03, 0.12, 0.2), dark, -0.44, 0.18, -1.55);
+  addMesh(g, new THREE.BoxGeometry(0.03, 0.12, 0.2), dark, 0.44, 0.18, -1.55);
 
-  // Cabin roof
-  addMesh(g, box(0.95, 0.18, 0.7), bodyMat, 0, 0.42, 0.15);
+  // Axles (silver cylinders connecting the wheels)
+  const frontAxle = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.04, 0.04, 1.4, 8), silver,
+  );
+  frontAxle.rotation.z = Math.PI / 2;
+  frontAxle.position.set(0, 0.22, -1.2);
+  frontAxle.castShadow = true;
+  g.add(frontAxle);
 
-  // Windshield (angled front glass)
-  addMesh(g, box(0.9, 0.16, 0.02), glass, 0, 0.38, -0.2);
+  const rearAxle = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.05, 0.05, 1.56, 8), silver,
+  );
+  rearAxle.rotation.z = Math.PI / 2;
+  rearAxle.position.set(0, 0.26, 0.85);
+  rearAxle.castShadow = true;
+  g.add(rearAxle);
 
-  // Rear window
-  addMesh(g, box(0.85, 0.14, 0.02), glass, 0, 0.38, 0.52);
+  // Wheels — store references for spin animation
+  const wheels = [];
+  function addWheel(x, y, z, r) {
+    const tire = new THREE.Mesh(
+      new THREE.CylinderGeometry(r, r, 0.18, 8), fmat(0x1a1a1a),
+    );
+    tire.rotation.z = Math.PI / 2;
+    tire.position.set(x, y, z);
+    tire.castShadow = true;
+    g.add(tire);
+    wheels.push(tire);
+  }
+  addWheel(-0.7, 0.22, -1.2, 0.26);
+  addWheel(0.7, 0.22, -1.2, 0.26);
+  addWheel(-0.78, 0.26, 0.85, 0.3);
+  addWheel(0.78, 0.26, 0.85, 0.3);
+  g.userData.wheels = wheels;
 
-  // Rear spoiler lip
-  addMesh(g, box(1.0, 0.05, 0.12), bodyMat, 0, 0.35, 1.15);
-
-  // Taillights
-  addMesh(g, box(0.2, 0.06, 0.04), mat(0xff2200), -0.45, 0.25, 1.22);
-  addMesh(g, box(0.2, 0.06, 0.04), mat(0xff2200), 0.45, 0.25, 1.22);
-
-  // Headlights
-  addMesh(g, box(0.2, 0.06, 0.04), mat(0xffffcc), -0.35, 0.25, -1.22);
-  addMesh(g, box(0.2, 0.06, 0.04), mat(0xffffcc), 0.35, 0.25, -1.22);
-
-  addWheels(g, 0.6, 0.16, -0.75, 0.75);
   return g;
 }
 
-// ---------------------------------------------------------------------------
-// Style 1 — Muscle GT (Mustang / Camaro)
-// ---------------------------------------------------------------------------
-
-function buildMuscleGT(color) {
-  const g = new THREE.Group();
-  const bodyMat = mat(color);
-  const glass = glassMat();
-  const stripeMat = mat(0xffffff);
-
-  // Wide body
-  addMesh(g, box(1.5, 0.28, 2.6), bodyMat, 0, 0.22, 0);
-
-  // Long hood
-  addMesh(g, box(1.4, 0.12, 1.0), bodyMat, 0, 0.38, -0.6);
-
-  // Hood scoop
-  addMesh(g, box(0.3, 0.1, 0.4), bodyMat, 0, 0.46, -0.5);
-
-  // Racing stripes (white, 0.2 wide)
-  addMesh(g, box(0.2, 0.01, 2.6), stripeMat, 0, 0.37, 0);
-
-  // Cabin — set further back
-  addMesh(g, box(1.3, 0.24, 0.7), bodyMat, 0, 0.46, 0.4);
-
-  // Windshield
-  addMesh(g, box(1.2, 0.22, 0.02), glass, 0, 0.46, 0.04);
-  // Rear window
-  addMesh(g, box(1.1, 0.18, 0.02), glass, 0, 0.44, 0.76);
-  // Side windows
-  addMesh(g, box(0.02, 0.18, 0.55), glass, -0.66, 0.46, 0.4);
-  addMesh(g, box(0.02, 0.18, 0.55), glass, 0.66, 0.46, 0.4);
-
-  // Rectangular headlights
-  addMesh(g, box(0.25, 0.08, 0.04), mat(0xffffcc), -0.45, 0.28, -1.32);
-  addMesh(g, box(0.25, 0.08, 0.04), mat(0xffffcc), 0.45, 0.28, -1.32);
-
-  // Taillights
-  addMesh(g, box(0.3, 0.08, 0.04), mat(0xff2200), -0.5, 0.28, 1.32);
-  addMesh(g, box(0.3, 0.08, 0.04), mat(0xff2200), 0.5, 0.28, 1.32);
-
-  // Rear bumper
-  addMesh(g, box(1.5, 0.1, 0.08), darkMat(), 0, 0.12, 1.34);
-
-
-  addWheels(g, 0.82, 0.18, -0.85, 0.85);
-  return g;
-}
-
-// ---------------------------------------------------------------------------
-// Style 2 — Rally GT (WRX / Group-B)
-// ---------------------------------------------------------------------------
-
-function buildRallyGT(color) {
-  const g = new THREE.Group();
-  const bodyMat = mat(color);
-  const glass = glassMat();
-  const dark = darkMat();
-
-  // Boxy taller body
-  addMesh(g, box(1.3, 0.4, 2.2), bodyMat, 0, 0.28, 0);
-
-  // Flared fenders — all 4 corners
-  addMesh(g, box(0.2, 0.2, 0.5), bodyMat, -0.72, 0.2, -0.65);
-  addMesh(g, box(0.2, 0.2, 0.5), bodyMat, 0.72, 0.2, -0.65);
-  addMesh(g, box(0.2, 0.2, 0.5), bodyMat, -0.72, 0.2, 0.65);
-  addMesh(g, box(0.2, 0.2, 0.5), bodyMat, 0.72, 0.2, 0.65);
-
-  // Cabin
-  addMesh(g, box(1.1, 0.26, 0.8), bodyMat, 0, 0.58, 0.05);
-
-  // Roof scoop
-  addMesh(g, box(0.25, 0.1, 0.3), bodyMat, 0, 0.72, -0.1);
-
-  // Windshield
-  addMesh(g, box(1.0, 0.24, 0.02), glass, 0, 0.56, -0.36);
-  // Rear window
-  addMesh(g, box(0.95, 0.2, 0.02), glass, 0, 0.54, 0.46);
-  // Side windows
-  addMesh(g, box(0.02, 0.2, 0.6), glass, -0.56, 0.56, 0.05);
-  addMesh(g, box(0.02, 0.2, 0.6), glass, 0.56, 0.56, 0.05);
-
-  // Tall rear wing
-  addMesh(g, box(1.2, 0.04, 0.25), dark, 0, 0.8, 1.0);
-  // Wing endplates
-  addMesh(g, box(0.04, 0.2, 0.25), dark, -0.6, 0.72, 1.0);
-  addMesh(g, box(0.04, 0.2, 0.25), dark, 0.6, 0.72, 1.0);
-  // Wing stanchions
-  addMesh(g, box(0.04, 0.3, 0.04), dark, -0.4, 0.65, 1.0);
-  addMesh(g, box(0.04, 0.3, 0.04), dark, 0.4, 0.65, 1.0);
-
-  // Fog lights
-  addMesh(g, box(0.12, 0.08, 0.04), mat(0xffff88), -0.5, 0.2, -1.12);
-  addMesh(g, box(0.12, 0.08, 0.04), mat(0xffff88), 0.5, 0.2, -1.12);
-
-
-  addWheels(g, 0.72, 0.18, -0.7, 0.7);
-  return g;
-}
-
-// ---------------------------------------------------------------------------
-// Style 3 — LMP (Le Mans Prototype)
-// ---------------------------------------------------------------------------
-
-function buildLMP(color) {
-  const g = new THREE.Group();
-  const bodyMat = mat(color);
-  const glass = glassMat();
-  const dark = darkMat();
-
-  // Long flat body
-  addMesh(g, box(1.3, 0.25, 3.0), bodyMat, 0, 0.2, 0);
-
-  // Front nose — tapered
-  addMesh(g, box(0.9, 0.15, 0.5), bodyMat, 0, 0.16, -1.6);
-
-  // Front splitter
-  addMesh(g, box(1.4, 0.03, 0.3), dark, 0, 0.06, -1.65);
-
-  // Narrow glass canopy cockpit
-  addMesh(g, box(0.7, 0.2, 0.6), glass, 0, 0.4, -0.1);
-
-  // Cockpit surround
-  addMesh(g, box(0.8, 0.08, 0.7), bodyMat, 0, 0.35, -0.1);
-
-  // Rear fenders
-  addMesh(g, box(0.25, 0.2, 0.8), bodyMat, -0.65, 0.22, 0.8);
-  addMesh(g, box(0.25, 0.2, 0.8), bodyMat, 0.65, 0.22, 0.8);
-
-  // Huge rear wing on twin stanchions
-  addMesh(g, box(1.4, 0.05, 0.3), dark, 0, 0.65, 1.35);
-  // Wing endplates
-  addMesh(g, box(0.04, 0.2, 0.3), dark, -0.7, 0.58, 1.35);
-  addMesh(g, box(0.04, 0.2, 0.3), dark, 0.7, 0.58, 1.35);
-  // Twin stanchions
-  addMesh(g, box(0.04, 0.35, 0.04), dark, -0.35, 0.45, 1.35);
-  addMesh(g, box(0.04, 0.35, 0.04), dark, 0.35, 0.45, 1.35);
-
-  // Headlights — slim strips
-  addMesh(g, box(0.3, 0.04, 0.04), mat(0xffffcc), -0.25, 0.2, -1.87);
-  addMesh(g, box(0.3, 0.04, 0.04), mat(0xffffcc), 0.25, 0.2, -1.87);
-
-  // Taillights
-  addMesh(g, box(0.2, 0.04, 0.04), mat(0xff2200), -0.55, 0.25, 1.52);
-  addMesh(g, box(0.2, 0.04, 0.04), mat(0xff2200), 0.55, 0.25, 1.52);
-
-  // Rear diffuser
-  addMesh(g, box(1.0, 0.12, 0.2), dark, 0, 0.08, 1.5);
-
-
-  addWheels(g, 0.72, 0.18, -1.1, 1.0);
-  return g;
-}
-
-// ---------------------------------------------------------------------------
-// Style 4 — JDM Street (GT-R / Supra)
-// ---------------------------------------------------------------------------
-
-function buildJDMStreet(color) {
-  const g = new THREE.Group();
-  const bodyMat = mat(color);
-  const glass = glassMat();
-  const dark = darkMat();
-
-  // Compact body
-  addMesh(g, box(1.3, 0.3, 2.2), bodyMat, 0, 0.23, 0);
-
-  // Hood with crease
-  addMesh(g, box(1.2, 0.08, 0.8), bodyMat, 0, 0.4, -0.5);
-  // Hood crease — thin raised ridge
-  addMesh(g, box(0.06, 0.04, 0.7), bodyMat, 0, 0.46, -0.5);
-
-  // Cabin
-  addMesh(g, box(1.15, 0.24, 0.7), bodyMat, 0, 0.5, 0.2);
-
-  // Windshield
-  addMesh(g, box(1.05, 0.22, 0.02), glass, 0, 0.5, -0.16);
-  // Rear window
-  addMesh(g, box(1.0, 0.18, 0.02), glass, 0, 0.48, 0.56);
-  // Side windows
-  addMesh(g, box(0.02, 0.18, 0.55), glass, -0.58, 0.5, 0.2);
-  addMesh(g, box(0.02, 0.18, 0.55), glass, 0.58, 0.5, 0.2);
-
-  // LED slit headlights — thin and wide, white
-  addMesh(g, box(0.4, 0.03, 0.04), mat(0xffffff), -0.35, 0.3, -1.12);
-  addMesh(g, box(0.4, 0.03, 0.04), mat(0xffffff), 0.35, 0.3, -1.12);
-
-  // Rear lip spoiler
-  addMesh(g, box(1.1, 0.04, 0.08), bodyMat, 0, 0.42, 1.08);
-
-  // High rear wing on posts
-  addMesh(g, box(1.1, 0.04, 0.2), dark, 0, 0.72, 0.95);
-  // Wing posts
-  addMesh(g, box(0.04, 0.28, 0.04), dark, -0.4, 0.56, 0.95);
-  addMesh(g, box(0.04, 0.28, 0.04), dark, 0.4, 0.56, 0.95);
-
-  // Taillights — horizontal strip
-  addMesh(g, box(1.0, 0.04, 0.04), mat(0xff2200), 0, 0.32, 1.12);
-
-  // Front bumper / lower intake
-  addMesh(g, box(1.1, 0.1, 0.06), dark, 0, 0.1, -1.12);
-
-
-  addWheels(g, 0.7, 0.18, -0.7, 0.7);
-  return g;
-}
-
-// ---------------------------------------------------------------------------
-// Style 5 — Retro GT (250 GTO / 3.0 CSL)
-// ---------------------------------------------------------------------------
-
-function buildRetroGT(color) {
-  const g = new THREE.Group();
-  const bodyMat = mat(color);
-  const glass = glassMat();
-  const chromeMat = mat(0xcccccc);
-  const dark = darkMat();
-
-  // Main body — elongated
-  addMesh(g, box(1.15, 0.28, 2.4), bodyMat, 0, 0.22, 0);
-
-  // Rounded narrower nose
-  addMesh(g, box(0.85, 0.22, 0.5), bodyMat, 0, 0.19, -1.2);
-
-  // Elongated hood
-  addMesh(g, box(1.05, 0.08, 1.0), bodyMat, 0, 0.38, -0.6);
-
-  // Fastback cabin — set back
-  addMesh(g, box(1.0, 0.24, 0.7), bodyMat, 0, 0.46, 0.3);
-  // Fastback slope
-  addMesh(g, box(0.95, 0.12, 0.4), bodyMat, 0, 0.42, 0.75);
-
-  // Windshield
-  addMesh(g, box(0.9, 0.22, 0.02), glass, 0, 0.46, -0.06);
-  // Rear window (small fastback)
-  addMesh(g, box(0.85, 0.14, 0.02), glass, 0, 0.42, 0.66);
-  // Side windows
-  addMesh(g, box(0.02, 0.18, 0.5), glass, -0.51, 0.46, 0.3);
-  addMesh(g, box(0.02, 0.18, 0.5), glass, 0.51, 0.46, 0.3);
-
-  // Oval chrome grille (cylinder on its side)
-  const grilleGeo = cyl(0.15, 0.15, 0.04, 12);
-  const grille = addMesh(g, grilleGeo, chromeMat, 0, 0.2, -1.48);
-  grille.rotation.x = Math.PI / 2;
-
-  // Chrome front bumper
-  addMesh(g, box(0.9, 0.06, 0.06), chromeMat, 0, 0.12, -1.48);
-
-  // Round headlights (spheres)
-  const headGeo = new THREE.SphereGeometry(0.08, 8, 8);
-  addMesh(g, headGeo, mat(0xffffcc), -0.32, 0.26, -1.46);
-  addMesh(g, headGeo, mat(0xffffcc), 0.32, 0.26, -1.46);
-
-  // Subtle trunk spoiler
-  addMesh(g, box(0.9, 0.04, 0.1), bodyMat, 0, 0.38, 1.15);
-
-  // Taillights — round-ish (small spheres)
-  const tailGeo = new THREE.SphereGeometry(0.06, 8, 8);
-  addMesh(g, tailGeo, mat(0xff2200), -0.4, 0.28, 1.22);
-  addMesh(g, tailGeo, mat(0xff2200), 0.4, 0.28, 1.22);
-
-
-  addWheels(g, 0.64, 0.18, -0.75, 0.75);
-  return g;
-}
-
-// ---------------------------------------------------------------------------
-// Public API
-// ---------------------------------------------------------------------------
-
-const BUILDERS = [
-  buildGT3Classic,
-  buildMuscleGT,
-  buildRallyGT,
-  buildLMP,
-  buildJDMStreet,
-  buildRetroGT,
-];
+// ── Public API ─────────────────────────────────────────────────────────────
 
 export function buildCarModel(styleIndex, color) {
-  const idx = Math.max(0, Math.min(styleIndex, BUILDERS.length - 1));
-  const model = BUILDERS[idx](color);
-  model.scale.set(0.5, 1.0, 0.5);
+  // styleIndex is unused — all cars are Formula now
+  const model = buildFormula(color);
+  // Scale to match 2D physics capsule (CAR_H=141px, PX_TO_WORLD=0.01 → 1.41 world units)
+  model.scale.set(0.6, 0.6, 0.6);
   return model;
 }
 

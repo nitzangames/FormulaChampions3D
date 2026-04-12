@@ -138,3 +138,76 @@ html, body {
   background: rgba(0,0,0,0.5);
   border: 1px solid rgba(255,255,255,0.2);
 }
+
+/* ── Career ──────────────────────────────────────────────────────────────── */
+
+.subtitle {
+  font-size: 14px;
+  color: #999;
+  margin-bottom: 8px;
+  text-align: center;
+}
+
+.btn-season {
+  font-size: 18px !important;
+  padding: 14px 28px !important;
+  min-width: 260px;
+}
+
+.career-info {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: rgba(255,255,255,0.08);
+  padding: 16px 24px;
+  border-radius: 8px;
+  min-width: 260px;
+}
+.career-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 15px;
+  color: #ccc;
+}
+.career-row strong {
+  color: #fff;
+  font-size: 17px;
+  font-weight: 700;
+}
+
+.standings-mini {
+  max-width: 320px;
+  background: rgba(0,0,0,0.35);
+  border: 1px solid rgba(255,255,255,0.15);
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 13px;
+  color: #ddd;
+  max-height: 30vh;
+  overflow-y: auto;
+}
+.standings-mini .row {
+  display: flex;
+  justify-content: space-between;
+  padding: 3px 0;
+}
+.standings-mini .row.player {
+  color: #4ecdc4;
+  font-weight: 700;
+}
+.standings-mini .pos {
+  width: 28px;
+  display: inline-block;
+}
+
+.finish-points {
+  color: #ffaa22;
+  font-size: 20px !important;
+  font-weight: 700;
+}
+
+#career-tier {
+  font-size: 40px;
+  letter-spacing: 2px;
+}

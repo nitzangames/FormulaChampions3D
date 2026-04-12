@@ -26,7 +26,7 @@ import { initRenderer, render as renderScene, getScene, getCamera, updateSunPosi
 import { initChaseCamera, updateChaseCamera, triggerShake, resetChaseCamera } from './camera3d.js';
 import { buildTrack as buildTrack3D, disposeTrack } from './track-builder.js';
 import { buildCarModel, updateCarModel, CAR_STYLE_NAMES } from './car-models.js';
-import { initEffects, updateEffects, updateSpeedLines, spawnSmoke, spawnSparks, addSkidmark, clearEffects } from './effects3d.js';
+import { initEffects, updateEffects, spawnSmoke, spawnSparks, addSkidmark, clearEffects } from './effects3d.js';
 import { buildScenery, disposeScenery } from './scenery.js';
 
 // ── State ───────────────────────────────────────────────────────────────────
@@ -951,8 +951,6 @@ function renderFrame(dt) {
     }
   }
   updateEffects(dt);
-  // Speed lines disabled — they render in the middle of the screen from chase cam
-  // updateSpeedLines(getCamera(), cars[0]?.speed || 0, dt);
 
   // Update chase camera following player car
   if (cars[0]) {

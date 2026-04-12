@@ -21,16 +21,10 @@ const sparkState = [];
 const MAX_SKIDMARKS = 200;
 const skidmarks = []; // { mesh }
 
-// Speed lines
-const SPEED_LINE_COUNT = 12;
-const speedLineMeshes = [];
-const speedLineAngles = []; // base angle around ring
-
 // Groups
 let smokeGroup = null;
 let sparkGroup = null;
 let skidGroup = null;
-let speedLineGroup = null;
 
 // ---------------------------------------------------------------------------
 // initEffects
@@ -83,25 +77,6 @@ export function initEffects(scene, camera) {
   skidGroup.name = 'effects_skidmarks';
   scene.add(skidGroup);
 
-  // --- Speed lines ---
-  speedLineGroup = new THREE.Group();
-  speedLineGroup.name = 'effects_speedlines';
-  for (let i = 0; i < SPEED_LINE_COUNT; i++) {
-    const geo = new THREE.PlaneGeometry(0.02, 1.5);
-    const mat = new THREE.MeshBasicMaterial({
-      color: 0xffffff,
-      transparent: true,
-      opacity: 0,
-      side: THREE.DoubleSide,
-      depthWrite: false,
-    });
-    const mesh = new THREE.Mesh(geo, mat);
-    mesh.visible = false;
-    speedLineGroup.add(mesh);
-    speedLineMeshes.push(mesh);
-    speedLineAngles.push((i / SPEED_LINE_COUNT) * Math.PI * 2);
-  }
-  scene.add(speedLineGroup);
 }
 
 // ---------------------------------------------------------------------------
@@ -158,46 +133,6 @@ export function updateEffects(dt) {
     // Fade
     const t = 1 - s.life / s.maxLife;
     sprite.material.opacity = 1 - t;
-  }
-}
-
-// ---------------------------------------------------------------------------
-// updateSpeedLines
-// ---------------------------------------------------------------------------
-
-export function updateSpeedLines(camera, speed, dt) {
-  const threshold = MAX_SPEED * PX_TO_WORLD * 0.6;
-  const maxSpd = MAX_SPEED * PX_TO_WORLD;
-  const ratio = (speed - threshold) / (maxSpd - threshold);
-
-  if (ratio <= 0) {
-    for (let i = 0; i < SPEED_LINE_COUNT; i++) {
-      speedLineMeshes[i].visible = false;
-    }
-    return;
-  }
-
-  const opacity = Math.min(ratio, 1);
-  const radius = 2;
-
-  for (let i = 0; i < SPEED_LINE_COUNT; i++) {
-    const mesh = speedLineMeshes[i];
-    mesh.visible = true;
-    mesh.material.opacity = opacity;
-
-    // Position in ring around camera
-    const angle = speedLineAngles[i];
-    mesh.position.set(
-      camera.position.x + Math.cos(angle) * radius,
-      camera.position.y + (Math.sin(angle * 3 + performance.now() * 0.003) * 1.5),
-      camera.position.z + Math.sin(angle) * radius
-    );
-
-    // Face the camera
-    mesh.lookAt(camera.position);
-
-    // Animate along Y by shifting angle over time
-    speedLineAngles[i] += dt * 2;
   }
 }
 
@@ -338,9 +273,4 @@ export function clearEffects() {
   // Clear skidmarks
   clearSkidmarks();
 
-  // Hide speed lines
-  for (let i = 0; i < SPEED_LINE_COUNT; i++) {
-    speedLineMeshes[i].visible = false;
-    speedLineMeshes[i].material.opacity = 0;
-  }
 }

@@ -151,9 +151,9 @@ export function spawnSmoke(x2d, y2d, angle) {
 
     // Position behind car (0.8 back) and offset to side (±0.4)
     const backDist = 0.8;
-    const sideDist = 0.4 * side;
-    const wx = x2d * PX_TO_WORLD - Math.sin(angle) * backDist + Math.cos(angle) * sideDist;
-    const wz = -(y2d * PX_TO_WORLD - Math.cos(angle) * backDist - Math.sin(angle) * sideDist);
+    const sideDist = 0.4;
+    const wx = x2d * PX_TO_WORLD + side * sideDist * Math.cos(angle) - backDist * Math.sin(angle);
+    const wz = y2d * PX_TO_WORLD + side * sideDist * Math.sin(angle) + backDist * Math.cos(angle);
 
     sprite.position.set(wx, 0.1, wz);
     sprite.visible = true;
@@ -183,7 +183,7 @@ export function spawnSparks(x2d, y2d) {
     sparkIndex = (sparkIndex + 1) % SPARK_POOL_SIZE;
 
     const wx = x2d * PX_TO_WORLD;
-    const wz = -(y2d * PX_TO_WORLD);
+    const wz = y2d * PX_TO_WORLD;
 
     sprite.position.set(wx, 0.2, wz);
     sprite.visible = true;
@@ -207,11 +207,13 @@ export function addSkidmark(x2d, y2d, angle, steering) {
   if (Math.abs(steering) < 0.15) return;
 
   for (let side = -1; side <= 1; side += 2) {
-    // Position behind car and to the side
+    // Car forward in 3D = (sin(angle), 0, -cos(angle))
+    // Right of car = (cos(angle), 0, sin(angle))
+    // Position = car + Right*side*0.4 - Forward*backDist
     const backDist = 0.8;
-    const sideDist = 0.4 * side;
-    const wx = x2d * PX_TO_WORLD - Math.sin(angle) * backDist + Math.cos(angle) * sideDist;
-    const wz = -(y2d * PX_TO_WORLD - Math.cos(angle) * backDist - Math.sin(angle) * sideDist);
+    const sideDist = 0.4;
+    const wx = x2d * PX_TO_WORLD + side * sideDist * Math.cos(angle) - backDist * Math.sin(angle);
+    const wz = y2d * PX_TO_WORLD + side * sideDist * Math.sin(angle) + backDist * Math.cos(angle);
 
     const geo = new THREE.PlaneGeometry(0.06, 0.3);
     const mat = new THREE.MeshBasicMaterial({

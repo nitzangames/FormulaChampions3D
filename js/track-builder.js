@@ -127,20 +127,31 @@ function buildWallBlocks(left, right) {
   const redMat = new THREE.MeshLambertMaterial({ color: 0xee3333 });
   const whiteMat = new THREE.MeshLambertMaterial({ color: 0xffffff });
 
-  placeBlocksAlongPath(left, redMat, whiteMat, 0);
-  placeBlocksAlongPath(right, redMat, whiteMat, 0);
+  // outwardSign: left wall's outward is 90° CCW of forward (+1)
+  //              right wall's outward is 90° CW of forward (-1)
+  placeBlocksAlongPath(left, redMat, whiteMat, 0, +1);
+  placeBlocksAlongPath(right, redMat, whiteMat, 0, -1);
 }
 
-function placeBlocksAlongPath(path, redMat, whiteMat, startIndex) {
+function placeBlocksAlongPath(path, redMat, whiteMat, startIndex, outwardSign) {
   const n = path.length;
   let accumulated = 0;
   let blockIndex = startIndex;
+  const blockHalfWidth = 0.2 / 2; // half of block's 0.2 width
 
   for (let i = 0; i < n - 1; i++) {
     const dx = path[i + 1].x - path[i].x;
     const dz = path[i + 1].z - path[i].z;
     const segLen = Math.sqrt(dx * dx + dz * dz);
     if (segLen < 0.001) continue;
+
+    // Outward perpendicular for this segment
+    const tx = dx / segLen;
+    const tz = dz / segLen;
+    // Perpendicular 90° CCW of tangent: (-tz, tx). Multiply by outwardSign
+    // to get outward direction for this side of the track.
+    const outX = -tz * outwardSign;
+    const outZ = tx * outwardSign;
 
     let walked = 0;
     while (walked < segLen) {
@@ -152,8 +163,10 @@ function placeBlocksAlongPath(path, redMat, whiteMat, startIndex) {
         accumulated = 0;
 
         const t = walked / segLen;
-        const bx = path[i].x + dx * t;
-        const bz = path[i].z + dz * t;
+        // Block center: offset outward from the wall path by half block width,
+        // so the inside face of the block sits at the road edge (wall path).
+        const bx = path[i].x + dx * t + outX * blockHalfWidth;
+        const bz = path[i].z + dz * t + outZ * blockHalfWidth;
         const angle = Math.atan2(dx, dz);
 
         const blockMat = blockIndex % 2 === 0 ? redMat : whiteMat;

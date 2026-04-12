@@ -1,0 +1,516 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>MiniGT 3D — Visual Style Options</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #1a1a2e; color: #e0e0e0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+  h1 { text-align: center; padding: 24px 0 8px; font-size: 28px; color: #fff; }
+  .subtitle { text-align: center; color: #888; margin-bottom: 24px; font-size: 14px; }
+  .options { display: flex; flex-direction: column; gap: 20px; max-width: 700px; margin: 0 auto; padding: 0 20px 40px; }
+  .option {
+    border: 2px solid #333; border-radius: 12px; overflow: hidden; cursor: pointer;
+    transition: border-color 0.2s, transform 0.2s;
+  }
+  .option:hover { border-color: #666; transform: scale(1.01); }
+  .option.selected { border-color: #4ecdc4; box-shadow: 0 0 20px rgba(78,205,196,0.3); }
+  .option canvas { width: 100%; height: 280px; display: block; }
+  .option-label {
+    padding: 12px 16px; background: #222; display: flex; align-items: center; gap: 12px;
+  }
+  .letter {
+    width: 32px; height: 32px; border-radius: 50%; background: #333;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: bold; font-size: 14px; color: #4ecdc4; flex-shrink: 0;
+  }
+  .option.selected .letter { background: #4ecdc4; color: #1a1a2e; }
+  .option-text h3 { font-size: 16px; color: #fff; margin-bottom: 2px; }
+  .option-text p { font-size: 13px; color: #999; }
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+</head>
+<body>
+
+<h1>Visual Style</h1>
+<p class="subtitle">Which 3D rendering style for MiniGT 3D? Click to select.</p>
+
+<div class="options">
+  <div class="option" data-choice="a" onclick="selectOption(this)">
+    <canvas id="scene-a"></canvas>
+    <div class="option-label">
+      <div class="letter">A</div>
+      <div class="option-text">
+        <h3>Low-Poly / Stylized</h3>
+        <p>Flat colors, geometric shapes, no textures needed. Clean and fast on mobile.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="b" onclick="selectOption(this)">
+    <canvas id="scene-b"></canvas>
+    <div class="option-label">
+      <div class="letter">B</div>
+      <div class="option-text">
+        <h3>Realistic-ish</h3>
+        <p>Textured asphalt, metallic paint, subtle reflections. Richer look, heavier rendering.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="c" onclick="selectOption(this)">
+    <canvas id="scene-c"></canvas>
+    <div class="option-label">
+      <div class="letter">C</div>
+      <div class="option-text">
+        <h3>Retro / Voxel</h3>
+        <p>Chunky blocky aesthetic, like 3D pixel art. Nostalgic and distinctive.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+function selectOption(el) {
+  document.querySelectorAll('.option').forEach(o => o.classList.remove('selected'));
+  el.classList.add('selected');
+  // Send event if helper exists
+  if (window.__sp_record) window.__sp_record('click', el.dataset.choice, el.querySelector('h3').textContent);
+  // Fallback: post to state
+  try {
+    const evt = { type: 'click', choice: el.dataset.choice, text: el.querySelector('h3').textContent, timestamp: Math.floor(Date.now()/1000) };
+    fetch('/event', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(evt) }).catch(()=>{});
+  } catch(e) {}
+}
+
+// --- THREE.JS SCENES ---
+
+function createScene(canvasId, setupFn) {
+  const canvas = document.getElementById(canvasId);
+  const w = canvas.clientWidth * 2, h = 560;
+  canvas.width = w; canvas.height = h;
+
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+  renderer.setSize(w, h, false);
+  renderer.shadowMap.enabled = true;
+
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(50, w / h, 0.1, 200);
+  camera.position.set(0, 4, 8);
+  camera.lookAt(0, 0.5, 0);
+
+  setupFn(scene, renderer);
+
+  let t = 0;
+  function animate() {
+    requestAnimationFrame(animate);
+    t += 0.01;
+    // Gentle camera sway
+    camera.position.x = Math.sin(t * 0.5) * 1.5;
+    camera.lookAt(0, 0.5, -2);
+    renderer.render(scene, camera);
+  }
+  animate();
+}
+
+// ---- STYLE A: LOW-POLY / STYLIZED ----
+createScene('scene-a', (scene, renderer) => {
+  renderer.setClearColor(0x87ceeb); // light blue sky
+  scene.fog = new THREE.Fog(0x87ceeb, 20, 60);
+
+  // Sunlight
+  const sun = new THREE.DirectionalLight(0xffffff, 0.9);
+  sun.position.set(5, 10, 5);
+  sun.castShadow = true;
+  scene.add(sun);
+  scene.add(new THREE.AmbientLight(0x6688aa, 0.5));
+
+  // Flat ground
+  const ground = new THREE.Mesh(
+    new THREE.PlaneGeometry(60, 60),
+    new THREE.MeshLambertMaterial({ color: 0x4a9e4a })
+  );
+  ground.rotation.x = -Math.PI / 2;
+  ground.receiveShadow = true;
+  scene.add(ground);
+
+  // Road — flat dark strip
+  const road = new THREE.Mesh(
+    new THREE.PlaneGeometry(6, 40),
+    new THREE.MeshLambertMaterial({ color: 0x444444 })
+  );
+  road.rotation.x = -Math.PI / 2;
+  road.position.y = 0.01;
+  scene.add(road);
+
+  // Road center line (dashed)
+  for (let z = -18; z < 18; z += 3) {
+    const dash = new THREE.Mesh(
+      new THREE.PlaneGeometry(0.15, 1.2),
+      new THREE.MeshLambertMaterial({ color: 0xffffff })
+    );
+    dash.rotation.x = -Math.PI / 2;
+    dash.position.set(0, 0.02, z);
+    scene.add(dash);
+  }
+
+  // Walls — low-poly flat colored blocks
+  for (let side of [-1, 1]) {
+    for (let z = -18; z < 18; z += 2) {
+      const wall = new THREE.Mesh(
+        new THREE.BoxGeometry(0.3, 0.5, 1.8),
+        new THREE.MeshLambertMaterial({ color: z % 4 === 0 ? 0xee3333 : 0xffffff })
+      );
+      wall.position.set(side * 3.1, 0.25, z);
+      wall.castShadow = true;
+      scene.add(wall);
+    }
+  }
+
+  // Low-poly car (player - blue)
+  const carGroup = new THREE.Group();
+
+  // Body — simple box with angled front
+  const body = new THREE.Mesh(
+    new THREE.BoxGeometry(1.4, 0.45, 2.8),
+    new THREE.MeshLambertMaterial({ color: 0x2266dd })
+  );
+  body.position.y = 0.4;
+  body.castShadow = true;
+  carGroup.add(body);
+
+  // Cabin
+  const cabin = new THREE.Mesh(
+    new THREE.BoxGeometry(1.1, 0.35, 1.2),
+    new THREE.MeshLambertMaterial({ color: 0x88bbff })
+  );
+  cabin.position.set(0, 0.7, 0.1);
+  carGroup.add(cabin);
+
+  // Wheels
+  for (let x of [-0.7, 0.7]) {
+    for (let z of [-0.8, 0.8]) {
+      const wheel = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.22, 0.22, 0.15, 6),
+        new THREE.MeshLambertMaterial({ color: 0x222222 })
+      );
+      wheel.rotation.z = Math.PI / 2;
+      wheel.position.set(x, 0.22, z);
+      carGroup.add(wheel);
+    }
+  }
+  carGroup.position.set(0.8, 0, 0);
+  scene.add(carGroup);
+
+  // AI car (red)
+  const ai1 = carGroup.clone();
+  ai1.position.set(-0.8, 0, -4);
+  ai1.children[0].material = new THREE.MeshLambertMaterial({ color: 0xdd3333 });
+  scene.add(ai1);
+
+  // Simple low-poly trees
+  for (let i = 0; i < 8; i++) {
+    const tree = new THREE.Group();
+    const trunk = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.15, 0.2, 1.2, 5),
+      new THREE.MeshLambertMaterial({ color: 0x8B6914 })
+    );
+    trunk.position.y = 0.6;
+    tree.add(trunk);
+    const top = new THREE.Mesh(
+      new THREE.ConeGeometry(0.8, 1.5, 5),
+      new THREE.MeshLambertMaterial({ color: 0x228833 })
+    );
+    top.position.y = 1.8;
+    tree.add(top);
+    tree.position.set(
+      (Math.random() > 0.5 ? 1 : -1) * (5 + Math.random() * 6),
+      0,
+      -15 + Math.random() * 30
+    );
+    tree.castShadow = true;
+    scene.add(tree);
+  }
+});
+
+// ---- STYLE B: REALISTIC-ISH ----
+createScene('scene-b', (scene, renderer) => {
+  renderer.setClearColor(0x667799);
+  scene.fog = new THREE.Fog(0x667799, 20, 50);
+
+  // Lighting
+  const sun = new THREE.DirectionalLight(0xffeedd, 1.0);
+  sun.position.set(3, 8, 5);
+  sun.castShadow = true;
+  scene.add(sun);
+  scene.add(new THREE.AmbientLight(0x445566, 0.6));
+  scene.add(new THREE.HemisphereLight(0x8899bb, 0x445522, 0.3));
+
+  // Ground with texture-like pattern
+  const groundCanvas = document.createElement('canvas');
+  groundCanvas.width = 256; groundCanvas.height = 256;
+  const gctx = groundCanvas.getContext('2d');
+  gctx.fillStyle = '#3a7a3a';
+  gctx.fillRect(0, 0, 256, 256);
+  for (let i = 0; i < 2000; i++) {
+    gctx.fillStyle = `rgba(${30+Math.random()*40},${100+Math.random()*60},${30+Math.random()*30},0.3)`;
+    gctx.fillRect(Math.random()*256, Math.random()*256, 2, 2);
+  }
+  const grassTex = new THREE.CanvasTexture(groundCanvas);
+  grassTex.wrapS = grassTex.wrapT = THREE.RepeatWrapping;
+  grassTex.repeat.set(10, 10);
+
+  const ground = new THREE.Mesh(
+    new THREE.PlaneGeometry(60, 60),
+    new THREE.MeshStandardMaterial({ map: grassTex, roughness: 0.9 })
+  );
+  ground.rotation.x = -Math.PI / 2;
+  ground.receiveShadow = true;
+  scene.add(ground);
+
+  // Asphalt road with texture
+  const roadCanvas = document.createElement('canvas');
+  roadCanvas.width = 256; roadCanvas.height = 256;
+  const rctx = roadCanvas.getContext('2d');
+  rctx.fillStyle = '#3a3a3a';
+  rctx.fillRect(0, 0, 256, 256);
+  for (let i = 0; i < 3000; i++) {
+    rctx.fillStyle = `rgba(${50+Math.random()*30},${50+Math.random()*30},${50+Math.random()*30},0.4)`;
+    rctx.fillRect(Math.random()*256, Math.random()*256, 1+Math.random()*2, 1+Math.random()*2);
+  }
+  const asphaltTex = new THREE.CanvasTexture(roadCanvas);
+  asphaltTex.wrapS = asphaltTex.wrapT = THREE.RepeatWrapping;
+  asphaltTex.repeat.set(2, 10);
+
+  const road = new THREE.Mesh(
+    new THREE.PlaneGeometry(6, 40),
+    new THREE.MeshStandardMaterial({ map: asphaltTex, roughness: 0.8, metalness: 0.1 })
+  );
+  road.rotation.x = -Math.PI / 2;
+  road.position.y = 0.01;
+  scene.add(road);
+
+  // Center line
+  for (let z = -18; z < 18; z += 3) {
+    const dash = new THREE.Mesh(
+      new THREE.PlaneGeometry(0.12, 1.0),
+      new THREE.MeshStandardMaterial({ color: 0xddddaa, roughness: 0.5 })
+    );
+    dash.rotation.x = -Math.PI / 2;
+    dash.position.set(0, 0.02, z);
+    scene.add(dash);
+  }
+
+  // Metal barriers
+  for (let side of [-1, 1]) {
+    // Continuous rail
+    const rail = new THREE.Mesh(
+      new THREE.BoxGeometry(0.08, 0.35, 36),
+      new THREE.MeshStandardMaterial({ color: 0xaaaaaa, metalness: 0.8, roughness: 0.3 })
+    );
+    rail.position.set(side * 3.15, 0.45, 0);
+    rail.castShadow = true;
+    scene.add(rail);
+    // Posts
+    for (let z = -18; z < 18; z += 2.5) {
+      const post = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.04, 0.04, 0.6, 8),
+        new THREE.MeshStandardMaterial({ color: 0x999999, metalness: 0.7, roughness: 0.3 })
+      );
+      post.position.set(side * 3.15, 0.3, z);
+      scene.add(post);
+    }
+  }
+
+  // Realistic-ish car (player - blue metallic)
+  const carGroup = new THREE.Group();
+  const bodyMat = new THREE.MeshStandardMaterial({ color: 0x1144aa, metalness: 0.7, roughness: 0.25 });
+
+  // Smooth body
+  const body = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.4, 2.9), bodyMat);
+  body.position.y = 0.38;
+  body.castShadow = true;
+  carGroup.add(body);
+
+  // Hood slope
+  const hood = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.15, 0.9), bodyMat);
+  hood.position.set(0, 0.55, -0.85);
+  hood.rotation.x = 0.15;
+  carGroup.add(hood);
+
+  // Windshield
+  const glass = new THREE.MeshStandardMaterial({ color: 0x334466, metalness: 0.3, roughness: 0.1, transparent: true, opacity: 0.7 });
+  const cabin = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.3, 1.0), glass);
+  cabin.position.set(0, 0.65, 0.15);
+  carGroup.add(cabin);
+
+  // Wheels with rims
+  for (let x of [-0.75, 0.75]) {
+    for (let z of [-0.85, 0.85]) {
+      const tire = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.24, 0.24, 0.18, 16),
+        new THREE.MeshStandardMaterial({ color: 0x1a1a1a, roughness: 0.9 })
+      );
+      tire.rotation.z = Math.PI / 2;
+      tire.position.set(x, 0.24, z);
+      carGroup.add(tire);
+      const rim = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.14, 0.14, 0.19, 16),
+        new THREE.MeshStandardMaterial({ color: 0xcccccc, metalness: 0.9, roughness: 0.2 })
+      );
+      rim.rotation.z = Math.PI / 2;
+      rim.position.set(x * 1.01, 0.24, z);
+      carGroup.add(rim);
+    }
+  }
+  carGroup.position.set(0.8, 0, 0);
+  scene.add(carGroup);
+
+  // AI car (red metallic)
+  const ai1 = carGroup.clone();
+  ai1.position.set(-0.8, 0, -4);
+  const redMat = new THREE.MeshStandardMaterial({ color: 0xaa1122, metalness: 0.7, roughness: 0.25 });
+  ai1.children[0].material = redMat;
+  ai1.children[1].material = redMat;
+  scene.add(ai1);
+});
+
+// ---- STYLE C: RETRO / VOXEL ----
+createScene('scene-c', (scene, renderer) => {
+  renderer.setClearColor(0x5588cc);
+  scene.fog = new THREE.Fog(0x5588cc, 25, 55);
+
+  const sun = new THREE.DirectionalLight(0xffffff, 0.8);
+  sun.position.set(5, 10, 5);
+  sun.castShadow = true;
+  scene.add(sun);
+  scene.add(new THREE.AmbientLight(0x667799, 0.5));
+
+  // Blocky ground
+  const ground = new THREE.Mesh(
+    new THREE.BoxGeometry(60, 0.5, 60),
+    new THREE.MeshLambertMaterial({ color: 0x55aa44 })
+  );
+  ground.position.y = -0.25;
+  ground.receiveShadow = true;
+  scene.add(ground);
+
+  // Road — voxel blocks
+  for (let z = -19; z < 19; z += 1) {
+    for (let x = -3; x <= 3; x += 1) {
+      const block = new THREE.Mesh(
+        new THREE.BoxGeometry(0.95, 0.2, 0.95),
+        new THREE.MeshLambertMaterial({ color: x === 0 ? 0x666666 : 0x444444 })
+      );
+      block.position.set(x, 0.1, z);
+      scene.add(block);
+    }
+  }
+
+  // Center line voxels
+  for (let z = -18; z < 18; z += 2) {
+    const dash = new THREE.Mesh(
+      new THREE.BoxGeometry(0.3, 0.25, 0.9),
+      new THREE.MeshLambertMaterial({ color: 0xeeee44 })
+    );
+    dash.position.set(0, 0.2, z);
+    scene.add(dash);
+  }
+
+  // Voxel walls
+  for (let side of [-1, 1]) {
+    for (let z = -18; z < 18; z += 1) {
+      const voxel = new THREE.Mesh(
+        new THREE.BoxGeometry(0.9, 0.7, 0.9),
+        new THREE.MeshLambertMaterial({ color: z % 2 === 0 ? 0xee3333 : 0xeeeeee })
+      );
+      voxel.position.set(side * 3.5, 0.35, z);
+      voxel.castShadow = true;
+      scene.add(voxel);
+    }
+  }
+
+  // Voxel car (player - blue)
+  const carGroup = new THREE.Group();
+  const voxelSize = 0.35;
+
+  // Body voxels (4 wide, 2 tall, 7 long)
+  const bodyColor = new THREE.MeshLambertMaterial({ color: 0x2255cc });
+  const darkColor = new THREE.MeshLambertMaterial({ color: 0x1a1a1a });
+  const glassColor = new THREE.MeshLambertMaterial({ color: 0x88aadd });
+
+  // Bottom layer
+  for (let x = -1; x <= 1; x++) {
+    for (let z = -3; z <= 3; z++) {
+      const v = new THREE.Mesh(new THREE.BoxGeometry(voxelSize*0.95, voxelSize*0.95, voxelSize*0.95), bodyColor);
+      v.position.set(x * voxelSize, voxelSize * 0.5 + 0.15, z * voxelSize);
+      v.castShadow = true;
+      carGroup.add(v);
+    }
+  }
+  // Top layer (cabin area)
+  for (let x = -1; x <= 1; x++) {
+    for (let z = -1; z <= 1; z++) {
+      const mat = (x === -1 || x === 1) ? bodyColor : glassColor;
+      const v = new THREE.Mesh(new THREE.BoxGeometry(voxelSize*0.95, voxelSize*0.95, voxelSize*0.95), mat);
+      v.position.set(x * voxelSize, voxelSize * 1.5 + 0.15, z * voxelSize);
+      carGroup.add(v);
+    }
+  }
+  // Wheel voxels
+  for (let x of [-1.3, 1.3]) {
+    for (let z of [-2, 2]) {
+      const w = new THREE.Mesh(new THREE.BoxGeometry(voxelSize*0.5, voxelSize*0.7, voxelSize*0.7), darkColor);
+      w.position.set(x * voxelSize, voxelSize * 0.35 + 0.05, z * voxelSize);
+      carGroup.add(w);
+    }
+  }
+
+  carGroup.position.set(0.8, 0, 0);
+  scene.add(carGroup);
+
+  // AI car (red voxel)
+  const ai1 = carGroup.clone();
+  ai1.position.set(-0.8, 0, -4);
+  const redVoxel = new THREE.MeshLambertMaterial({ color: 0xcc2222 });
+  ai1.children.forEach(c => { if (c.material === bodyColor) c.material = redVoxel; });
+  scene.add(ai1);
+
+  // Voxel trees
+  for (let i = 0; i < 6; i++) {
+    const tree = new THREE.Group();
+    // Trunk
+    for (let y = 0; y < 3; y++) {
+      const t = new THREE.Mesh(
+        new THREE.BoxGeometry(voxelSize, voxelSize, voxelSize),
+        new THREE.MeshLambertMaterial({ color: 0x885522 })
+      );
+      t.position.y = y * voxelSize + voxelSize/2;
+      tree.add(t);
+    }
+    // Leaves
+    for (let x = -1; x <= 1; x++) {
+      for (let z = -1; z <= 1; z++) {
+        for (let y = 0; y < 2; y++) {
+          if (y === 1 && (Math.abs(x) + Math.abs(z)) > 1) continue;
+          const leaf = new THREE.Mesh(
+            new THREE.BoxGeometry(voxelSize*0.95, voxelSize*0.95, voxelSize*0.95),
+            new THREE.MeshLambertMaterial({ color: 0x22aa33 })
+          );
+          leaf.position.set(x * voxelSize, (3 + y) * voxelSize + voxelSize/2, z * voxelSize);
+          tree.add(leaf);
+        }
+      }
+    }
+    tree.position.set(
+      (Math.random() > 0.5 ? 1 : -1) * (5 + Math.random() * 6),
+      0,
+      -15 + Math.random() * 30
+    );
+    tree.castShadow = true;
+    scene.add(tree);
+  }
+});
+</script>
+</body>
+</html>

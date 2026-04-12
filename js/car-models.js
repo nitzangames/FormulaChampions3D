@@ -417,7 +417,6 @@ export function updateCarModel(model, x2d, y2d, angle, speed, steering, dt) {
   model.position.z = y2d * PX_TO_WORLD;
   model.position.y = 0;
   model.rotation.y = -angle;
-  model.rotation.z = steering * 0.05;
 
   const wheels = model.userData.wheels;
   if (wheels) {

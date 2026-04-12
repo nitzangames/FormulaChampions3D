@@ -202,7 +202,7 @@ export function buildCarModel(styleIndex, color) {
   // styleIndex is unused — all cars are Formula now
   const model = buildFormula(color);
   // Scale to match 2D physics capsule (CAR_H=141px, PX_TO_WORLD=0.01 → 1.41 world units)
-  model.scale.set(0.6, 0.6, 0.6);
+  model.scale.set(0.45, 0.45, 0.45);
   return model;
 }
 

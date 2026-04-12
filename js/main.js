@@ -32,6 +32,7 @@ import { buildTrack as buildTrack3D, disposeTrack } from './track-builder.js';
 import { buildCarModel, updateCarModel } from './car-models.js';
 import { initEffects, updateEffects, spawnSmoke, spawnSparks, addSkidmark, clearEffects } from './effects3d.js';
 import { buildScenery, disposeScenery } from './scenery.js';
+import { initPhysicsDebug, updatePhysicsDebug, disposePhysicsDebug } from './debug3d.js';
 
 // ── State ───────────────────────────────────────────────────────────────────
 
@@ -244,6 +245,9 @@ function spawnCars() {
   }
 
   race = new Race(cars, centerLine, finishIdx);
+
+  // Physics debug outlines
+  initPhysicsDebug(getScene(), NUM_CARS);
 
   prevLaps = new Array(NUM_CARS).fill(0);
   resetChaseCamera();
@@ -901,6 +905,7 @@ function renderFrame(dt) {
     }
   }
   updateEffects(dt);
+  updatePhysicsDebug(cars);
 
   if (cars[0]) {
     updateChaseCamera(cars[0].x, cars[0].y, cars[0].angle, cars[0].speed);

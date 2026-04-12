@@ -1,16 +1,10 @@
-import { PX_TO_WORLD, ROAD_HALF_WIDTH } from './constants.js';
-
-/* global THREE */
+import { PX_TO_WORLD } from './constants.js';
 
 let sceneryGroup = null;
 
-/**
- * Build a single low-poly tree as a THREE.Group.
- */
 function buildTree() {
   const group = new THREE.Group();
 
-  // Trunk
   const trunkGeo = new THREE.CylinderGeometry(0.12, 0.18, 1.2, 5);
   const trunkMat = new THREE.MeshLambertMaterial({ color: 0x8B6914 });
   const trunk = new THREE.Mesh(trunkGeo, trunkMat);
@@ -18,7 +12,6 @@ function buildTree() {
   trunk.castShadow = true;
   group.add(trunk);
 
-  // Bottom foliage
   const foliageMat = new THREE.MeshLambertMaterial({ color: 0x228833 });
 
   const bottomGeo = new THREE.ConeGeometry(0.9, 1.2, 5);
@@ -27,7 +20,6 @@ function buildTree() {
   bottom.castShadow = true;
   group.add(bottom);
 
-  // Top foliage
   const topGeo = new THREE.ConeGeometry(0.6, 0.9, 5);
   const top = new THREE.Mesh(topGeo, foliageMat);
   top.position.y = 2.4;
@@ -38,77 +30,76 @@ function buildTree() {
 }
 
 /**
- * Place trees along both sides of the track.
+ * Place trees along both sides of the track, offset from the actual wall paths.
  * @param {THREE.Scene} scene
- * @param {Array<{x: number, y: number}>} centerLine - 2D pixel coordinates
+ * @param {{x:number,y:number}[]} centerLine - 2D pixel centerline
+ * @param {{left:{x:number,y:number}[], right:{x:number,y:number}[]}} walls
  */
-export function buildScenery(scene, centerLine) {
-  // Dispose previous scenery if any
-  if (sceneryGroup) {
-    disposeScenery();
-  }
+export function buildScenery(scene, centerLine, walls) {
+  if (sceneryGroup) disposeScenery();
 
   sceneryGroup = new THREE.Group();
   scene.add(sceneryGroup);
 
-  const len = centerLine.length;
+  const n = centerLine.length;
 
-  for (let i = 0; i < len; i += 8) {
-    // Skip ~40% of positions for variety
+  // Place trees using the wall path positions, offset outward from the track.
+  // This guarantees trees are always outside the walls, even on curves.
+  const step = 8;
+  for (let i = 0; i < n; i += step) {
     if (Math.random() > 0.6) continue;
 
-    const cur = centerLine[i];
-    const next = centerLine[(i + 1) % len];
+    // Get wall positions (wall paths may have an extra closing point)
+    const li = Math.min(i, walls.left.length - 1);
+    const ri = Math.min(i, walls.right.length - 1);
+    const ci = centerLine[i];
 
-    // Track direction in world coords
-    const dx = (next.x - cur.x) * PX_TO_WORLD;
-    const dy = (next.y - cur.y) * PX_TO_WORLD;
-    const dirLen = Math.sqrt(dx * dx + dy * dy);
-    if (dirLen < 0.0001) continue;
+    const lw = walls.left[li];
+    const rw = walls.right[ri];
 
-    // Perpendicular direction (in XZ plane: swap and negate)
-    const perpX = -dy / dirLen;
-    const perpZ = dx / dirLen;
+    // Direction from center to left wall = outward direction for left side
+    const ldx = (lw.x - ci.x) * PX_TO_WORLD;
+    const ldz = (lw.y - ci.y) * PX_TO_WORLD;
+    const lLen = Math.sqrt(ldx * ldx + ldz * ldz) || 1;
+    const lNx = ldx / lLen;
+    const lNz = ldz / lLen;
 
-    // Center position in world coords
-    const cx = cur.x * PX_TO_WORLD;
-    const cz = cur.y * PX_TO_WORLD;
+    const rdx = (rw.x - ci.x) * PX_TO_WORLD;
+    const rdz = (rw.y - ci.y) * PX_TO_WORLD;
+    const rLen = Math.sqrt(rdx * rdx + rdz * rdz) || 1;
+    const rNx = rdx / rLen;
+    const rNz = rdz / rLen;
 
-    // Place a tree on each side
-    for (const side of [-1, 1]) {
-      const dist = ROAD_HALF_WIDTH + 3 + Math.random() * 9; // 3 to 12 offset
-      const tree = buildTree();
+    // Place tree on left side — start from wall position, offset further out
+    const extraDist = 2 + Math.random() * 6;
+    const leftTree = buildTree();
+    leftTree.position.x = lw.x * PX_TO_WORLD + lNx * extraDist;
+    leftTree.position.z = lw.y * PX_TO_WORLD + lNz * extraDist;
+    leftTree.rotation.y = Math.random() * Math.PI * 2;
+    const s1 = 0.8 + Math.random() * 0.6;
+    leftTree.scale.set(s1, s1, s1);
+    sceneryGroup.add(leftTree);
 
-      tree.position.x = cx + perpX * side * dist;
-      tree.position.z = cz + perpZ * side * dist;
-      tree.position.y = 0;
-
-      tree.rotation.y = Math.random() * Math.PI * 2;
-
-      const s = 0.8 + Math.random() * 0.6; // 0.8 to 1.4
-      tree.scale.set(s, s, s);
-
-      sceneryGroup.add(tree);
-    }
+    // Place tree on right side
+    const rightTree = buildTree();
+    const extraDist2 = 2 + Math.random() * 6;
+    rightTree.position.x = rw.x * PX_TO_WORLD + rNx * extraDist2;
+    rightTree.position.z = rw.y * PX_TO_WORLD + rNz * extraDist2;
+    rightTree.rotation.y = Math.random() * Math.PI * 2;
+    const s2 = 0.8 + Math.random() * 0.6;
+    rightTree.scale.set(s2, s2, s2);
+    sceneryGroup.add(rightTree);
   }
 }
 
-/**
- * Remove and dispose all scenery meshes.
- */
 export function disposeScenery() {
   if (!sceneryGroup) return;
-
   sceneryGroup.traverse((child) => {
     if (child.isMesh) {
       if (child.geometry) child.geometry.dispose();
       if (child.material) child.material.dispose();
     }
   });
-
-  if (sceneryGroup.parent) {
-    sceneryGroup.parent.remove(sceneryGroup);
-  }
-
+  if (sceneryGroup.parent) sceneryGroup.parent.remove(sceneryGroup);
   sceneryGroup = null;
 }

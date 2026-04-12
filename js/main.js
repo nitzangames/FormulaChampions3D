@@ -196,10 +196,10 @@ function initTrack(seed) {
   createWallBodies(world, walls);
 
   // Build 3D track
-  buildTrack3D(getScene(), centerLine, track);
+  buildTrack3D(getScene(), centerLine, walls, track);
 
   // Build scenery (trees, etc.)
-  buildScenery(getScene(), centerLine);
+  buildScenery(getScene(), centerLine, walls);
 }
 
 // ── Car spawning ────────────────────────────────────────────────────────────

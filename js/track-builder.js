@@ -1,20 +1,14 @@
-import { PX_TO_WORLD, ROAD_HALF_WIDTH, WALL_HEIGHT, WALL_BLOCK_LENGTH } from './constants.js';
+import { PX_TO_WORLD, WALL_HEIGHT, WALL_BLOCK_LENGTH } from './constants.js';
 
 let trackGroup = null;
 
-/**
- * Remove and dispose all track geometry.
- */
 export function disposeTrack() {
   if (!trackGroup) return;
   trackGroup.traverse((obj) => {
     if (obj.geometry) obj.geometry.dispose();
     if (obj.material) {
-      if (Array.isArray(obj.material)) {
-        obj.material.forEach((m) => m.dispose());
-      } else {
-        obj.material.dispose();
-      }
+      if (Array.isArray(obj.material)) obj.material.forEach((m) => m.dispose());
+      else obj.material.dispose();
     }
   });
   if (trackGroup.parent) trackGroup.parent.remove(trackGroup);
@@ -22,77 +16,51 @@ export function disposeTrack() {
 }
 
 /**
- * Build all 3D track geometry from a 2D centerline and add to scene.
+ * Build 3D track from the 2D centerline and wall paths.
+ * Uses the actual wall paths (left/right) from track.js so the visuals
+ * match the physics collision geometry exactly.
+ *
+ * @param {THREE.Scene} scene
+ * @param {{x:number,y:number}[]} centerLine - 2D pixel waypoints (closed loop)
+ * @param {{left:{x:number,y:number}[], right:{x:number,y:number}[]}} walls - from buildWallPaths
+ * @param {object} track - track data (unused for now, reserved)
  */
-export function buildTrack(scene, centerLine, track) {
+export function buildTrack(scene, centerLine, walls, track) {
   disposeTrack();
   trackGroup = new THREE.Group();
 
-  const n = centerLine.length;
+  // Convert all paths to 3D world coords once
+  const center = centerLine.map(p => ({ x: p.x * PX_TO_WORLD, z: p.y * PX_TO_WORLD }));
+  const left = walls.left.map(p => ({ x: p.x * PX_TO_WORLD, z: p.y * PX_TO_WORLD }));
+  const right = walls.right.map(p => ({ x: p.x * PX_TO_WORLD, z: p.y * PX_TO_WORLD }));
 
-  // Precompute 3D positions
-  const pos = [];
-  for (let i = 0; i < n; i++) {
-    pos.push({
-      x: centerLine[i].x * PX_TO_WORLD,
-      z: centerLine[i].y * PX_TO_WORLD,
-    });
-  }
-
-  // Smoothed perpendiculars — average direction from previous and next segments
-  // to avoid sharp kinks at waypoint junctions
-  const perps = [];
-  for (let i = 0; i < n; i++) {
-    const prev = (i - 1 + n) % n;
-    const next = (i + 1) % n;
-
-    // Average of incoming and outgoing direction
-    const dx = pos[next].x - pos[prev].x;
-    const dz = pos[next].z - pos[prev].z;
-    const len = Math.sqrt(dx * dx + dz * dz) || 1;
-
-    // Perpendicular (left of forward): rotate 90 CCW
-    perps.push({ px: -dz / len, pz: dx / len });
-  }
-
-  // Forward directions per segment (i → i+1)
-  const dirs = [];
-  for (let i = 0; i < n; i++) {
-    const next = (i + 1) % n;
-    const dx = pos[next].x - pos[i].x;
-    const dz = pos[next].z - pos[i].z;
-    const len = Math.sqrt(dx * dx + dz * dz) || 1;
-    dirs.push({ dx: dx / len, dz: dz / len });
-  }
-
-  buildRoadSurface(pos, perps, n);
-  buildCenterDashes(pos, dirs, n);
-  buildWalls(pos, perps, n);
-  buildStartFinishLine(pos, dirs, perps);
+  buildRoadSurface(left, right);
+  buildCenterDashes(center);
+  buildWallBlocks(left, right);
+  buildStartFinishLine(center);
 
   scene.add(trackGroup);
   return trackGroup;
 }
 
 // ── Road Surface ──────────────────────────────────────────────────────────────
+// Build from actual left/right wall paths so the road matches collision exactly.
 
-function buildRoadSurface(pos, perps, n) {
+function buildRoadSurface(left, right) {
+  // left and right should have the same length (both derived from centerLine)
+  const n = Math.min(left.length, right.length);
   const vertices = [];
   const indices = [];
 
   for (let i = 0; i < n; i++) {
-    const p = pos[i];
-    const perp = perps[i];
-    vertices.push(
-      p.x + perp.px * ROAD_HALF_WIDTH, 0.01, p.z + perp.pz * ROAD_HALF_WIDTH,
-      p.x - perp.px * ROAD_HALF_WIDTH, 0.01, p.z - perp.pz * ROAD_HALF_WIDTH
-    );
+    vertices.push(left[i].x, 0.01, left[i].z);
+    vertices.push(right[i].x, 0.01, right[i].z);
   }
 
-  for (let i = 0; i < n; i++) {
-    const next = (i + 1) % n;
+  // The wall paths include a closing duplicate point, so n-1 segments
+  for (let i = 0; i < n - 1; i++) {
     const i0 = i * 2, i1 = i * 2 + 1;
-    const i2 = next * 2, i3 = next * 2 + 1;
+    const i2 = (i + 1) * 2, i3 = (i + 1) * 2 + 1;
     indices.push(i0, i2, i1);
     indices.push(i1, i2, i3);
   }
@@ -107,9 +75,9 @@ function buildRoadSurface(pos, perps, n) {
   trackGroup.add(mesh);
 }
 
-// ── Dashed Center Line ────────────────────────────────────────────────────────
+// ── Center Dashes ─────────────────────────────────────────────────────────────
 
-function buildCenterDashes(pos, dirs, n) {
+function buildCenterDashes(center) {
   const dashLen = 0.8;
   const gapLen = 0.8;
   const dashWidth = 0.08;
@@ -117,23 +85,22 @@ function buildCenterDashes(pos, dirs, n) {
 
   let inDash = true;
   let remaining = dashLen;
+  const n = center.length;
 
   for (let i = 0; i < n; i++) {
     const next = (i + 1) % n;
-    const dx = pos[next].x - pos[i].x;
-    const dz = pos[next].z - pos[i].z;
+    const dx = center[next].x - center[i].x;
+    const dz = center[next].z - center[i].z;
     const segLen = Math.sqrt(dx * dx + dz * dz);
     if (segLen < 0.001) continue;
 
     let walked = 0;
     while (walked < segLen) {
       const step = Math.min(remaining, segLen - walked);
-      if (inDash) {
-        const startT = walked / segLen;
-        const endT = (walked + step) / segLen;
-        const midT = (startT + endT) / 2;
-        const mx = pos[i].x + dx * midT;
-        const mz = pos[i].z + dz * midT;
+      if (inDash && step > 0.05) {
+        const midT = (walked + step / 2) / segLen;
+        const mx = center[i].x + dx * midT;
+        const mz = center[i].z + dz * midT;
         const angle = Math.atan2(dx, dz);
 
         const geo = new THREE.PlaneGeometry(dashWidth, step);
@@ -153,107 +120,88 @@ function buildCenterDashes(pos, dirs, n) {
   }
 }
 
-// ── Walls / Barriers ──────────────────────────────────────────────────────────
+// ── Wall Blocks ───────────────────────────────────────────────────────────────
+// Place red/white alternating blocks along the actual wall paths.
 
-function buildWalls(pos, perps, n) {
+function buildWallBlocks(left, right) {
   const redMat = new THREE.MeshLambertMaterial({ color: 0xee3333 });
   const whiteMat = new THREE.MeshLambertMaterial({ color: 0xffffff });
-  const wallOffset = ROAD_HALF_WIDTH + 0.2;
 
-  // Walk along the centerline and place wall blocks at regular arc-length intervals.
-  // Each block is positioned at a centerline point and oriented by the smoothed
-  // perpendicular at that point, so they follow curves correctly.
+  placeBlocksAlongPath(left, redMat, whiteMat, 0);
+  placeBlocksAlongPath(right, redMat, whiteMat, 0);
+}
 
+function placeBlocksAlongPath(path, redMat, whiteMat, startIndex) {
+  const n = path.length;
   let accumulated = 0;
-  let blockIndex = 0;
+  let blockIndex = startIndex;
 
-  for (let i = 0; i < n; i++) {
-    const next = (i + 1) % n;
-    const dx = pos[next].x - pos[i].x;
-    const dz = pos[next].z - pos[i].z;
+  for (let i = 0; i < n - 1; i++) {
+    const dx = path[i + 1].x - path[i].x;
+    const dz = path[i + 1].z - path[i].z;
     const segLen = Math.sqrt(dx * dx + dz * dz);
     if (segLen < 0.001) continue;
 
-    // Walk along this segment
     let walked = 0;
     while (walked < segLen) {
       const distToNext = WALL_BLOCK_LENGTH - accumulated;
-      const canWalk = segLen - walked;
+      const remaining = segLen - walked;
 
-      if (canWalk >= distToNext) {
-        // Place a block here
+      if (remaining >= distToNext) {
         walked += distToNext;
         accumulated = 0;
 
         const t = walked / segLen;
-        const bx = pos[i].x + dx * t;
-        const bz = pos[i].z + dz * t;
-
-        // Interpolate perpendicular between current and next waypoint
-        const perp = lerpPerp(perps[i], perps[next], t);
-
-        // Block orientation: face along the track
+        const bx = path[i].x + dx * t;
+        const bz = path[i].z + dz * t;
         const angle = Math.atan2(dx, dz);
+
         const blockMat = blockIndex % 2 === 0 ? redMat : whiteMat;
-        const blockGeo = new THREE.BoxGeometry(0.25, WALL_HEIGHT, WALL_BLOCK_LENGTH * 0.92);
-
-        // Left wall
-        const left = new THREE.Mesh(blockGeo, blockMat);
-        left.position.set(
-          bx + perp.px * wallOffset,
-          WALL_HEIGHT / 2,
-          bz + perp.pz * wallOffset
-        );
-        left.rotation.y = Math.PI - angle;
-        left.castShadow = true;
-        trackGroup.add(left);
-
-        // Right wall
-        const right = new THREE.Mesh(blockGeo, blockMat);
-        right.position.set(
-          bx - perp.px * wallOffset,
-          WALL_HEIGHT / 2,
-          bz - perp.pz * wallOffset
-        );
-        right.rotation.y = Math.PI - angle;
-        right.castShadow = true;
-        trackGroup.add(right);
+        const geo = new THREE.BoxGeometry(0.2, WALL_HEIGHT, WALL_BLOCK_LENGTH * 0.92);
+        const mesh = new THREE.Mesh(geo, blockMat);
+        mesh.position.set(bx, WALL_HEIGHT / 2, bz);
+        mesh.rotation.y = Math.PI - angle;
+        mesh.castShadow = true;
+        trackGroup.add(mesh);
 
         blockIndex++;
       } else {
-        // Not enough distance for next block — accumulate and move on
-        accumulated += canWalk;
+        accumulated += remaining;
         break;
       }
     }
   }
 }
 
-function lerpPerp(a, b, t) {
-  const px = a.px + (b.px - a.px) * t;
-  const pz = a.pz + (b.pz - a.pz) * t;
-  const len = Math.sqrt(px * px + pz * pz) || 1;
-  return { px: px / len, pz: pz / len };
-}
-
 // ── Start / Finish Line ───────────────────────────────────────────────────────
 
-function buildStartFinishLine(pos, dirs, perps) {
+function buildStartFinishLine(center) {
   const idx = 2;
-  if (idx >= pos.length) return;
+  if (idx + 1 >= center.length) return;
 
-  const p = pos[idx];
-  const dir = dirs[idx];
-  const perp = perps[idx];
+  const p = center[idx];
+  const next = center[idx + 1];
+  const dx = next.x - p.x;
+  const dz = next.z - p.z;
+  const len = Math.sqrt(dx * dx + dz * dz) || 1;
+  const dirX = dx / len;
+  const dirZ = dz / len;
+  // Perpendicular
+  const perpX = -dirZ;
+  const perpZ = dirX;
 
-  const totalWidth = ROAD_HALF_WIDTH * 2;
+  const angle = Math.atan2(dx, dz);
+
+  // Measure actual road width at this point — use a generous width
+  // based on the wall path offset (TILE/2 in pixels)
+  const halfWidth = 256 * PX_TO_WORLD; // TILE/2 in world units
+  const totalWidth = halfWidth * 2;
   const cols = 8;
   const rows = 2;
   const cellW = totalWidth / cols;
   const cellH = cellW;
   const blackMat = new THREE.MeshLambertMaterial({ color: 0x111111 });
   const whiteMat = new THREE.MeshLambertMaterial({ color: 0xeeeeee });
-  const angle = Math.atan2(dir.dx, dir.dz);
 
   for (let r = 0; r < rows; r++) {
     for (let c = 0; c < cols; c++) {
@@ -265,9 +213,9 @@ function buildStartFinishLine(pos, dirs, perps) {
       const fwdOffset = (r - (rows - 1) / 2) * cellH;
 
       mesh.position.set(
-        p.x + perp.px * perpOffset + dir.dx * fwdOffset,
+        p.x + perpX * perpOffset + dirX * fwdOffset,
         0.025,
-        p.z + perp.pz * perpOffset + dir.dz * fwdOffset
+        p.z + perpZ * perpOffset + dirZ * fwdOffset
       );
       mesh.rotation.x = -Math.PI / 2;
       mesh.rotation.z = -angle;

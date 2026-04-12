@@ -106,7 +106,10 @@ function buildCenterDashes(center) {
         const geo = new THREE.PlaneGeometry(dashWidth, step);
         const mesh = new THREE.Mesh(geo, mat);
         mesh.rotation.x = -Math.PI / 2;
-        mesh.rotation.z = -angle;
+        // After rotation.x = -PI/2, plane's long axis (local +Y) points
+        // to world -Z. rotation.z rotates around world +Y. Setting it to
+        // `angle` makes the long axis align with direction (dx, dz).
+        mesh.rotation.z = angle;
         mesh.position.set(mx, 0.02, mz);
         trackGroup.add(mesh);
       }
@@ -173,7 +176,9 @@ function placeBlocksAlongPath(path, redMat, whiteMat, startIndex, outwardSign) {
         const geo = new THREE.BoxGeometry(0.2, WALL_HEIGHT, WALL_BLOCK_LENGTH * 0.92);
         const mesh = new THREE.Mesh(geo, blockMat);
         mesh.position.set(bx, WALL_HEIGHT / 2, bz);
-        mesh.rotation.y = Math.PI - angle;
+        // Box long axis is local +Z. rotation.y = angle makes it point
+        // in direction (dx, dz). (Math.PI - angle would mirror along Z.)
+        mesh.rotation.y = angle;
         mesh.castShadow = true;
         trackGroup.add(mesh);
 
@@ -231,7 +236,7 @@ function buildStartFinishLine(center) {
         p.z + perpZ * perpOffset + dirZ * fwdOffset
       );
       mesh.rotation.x = -Math.PI / 2;
-      mesh.rotation.z = -angle;
+      mesh.rotation.z = angle;
       trackGroup.add(mesh);
     }
   }

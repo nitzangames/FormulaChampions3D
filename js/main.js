@@ -951,7 +951,8 @@ function renderFrame(dt) {
     }
   }
   updateEffects(dt);
-  updateSpeedLines(getCamera(), cars[0]?.speed || 0, dt);
+  // Speed lines disabled — they render in the middle of the screen from chase cam
+  // updateSpeedLines(getCamera(), cars[0]?.speed || 0, dt);
 
   // Update chase camera following player car
   if (cars[0]) {

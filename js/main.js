@@ -18,12 +18,14 @@ import { AIController } from './ai-controller.js';
 import {
   initAudio, playCountdownBeep, playGoBeep, playCrash,
   playLapFinish, playLapBoundary, playBumpSound, hapticThump,
+  playClick, hapticTap,
+  getSfxEnabled, setSfxEnabled, getHapticsEnabled, setHapticsEnabled,
 } from './audio.js';
-import { GOLD_REWARDS, addGold } from './currency.js';
+import { GOLD_REWARDS, addGold, getGold, getUnlockedCars, isCarUnlocked, unlockCar, UNLOCK_COST } from './currency.js';
 import { initRenderer, render as renderScene, getScene, getCamera } from './renderer3d.js';
 import { initChaseCamera, updateChaseCamera, triggerShake, resetChaseCamera } from './camera3d.js';
 import { buildTrack as buildTrack3D, disposeTrack } from './track-builder.js';
-import { buildCarModel, updateCarModel } from './car-models.js';
+import { buildCarModel, updateCarModel, CAR_STYLE_NAMES } from './car-models.js';
 
 // ── State ───────────────────────────────────────────────────────────────────
 
@@ -56,6 +58,72 @@ let lastTime = 0;
 
 // Car colors
 const CAR_COLORS = [0x2266dd, 0xdd3333, 0x33bb33, 0xddaa22];
+
+// UI state
+let selectedStyle = 0;
+let currentTrackIndex = 0;
+let earnedGold = 0;
+let finishShownTimeout = null;
+
+// Best times persistence
+const BEST_TIMES_KEY = 'mini-gt-3d:best-times';
+
+function getBestTime(trackIndex) {
+  try {
+    const raw = localStorage.getItem(BEST_TIMES_KEY);
+    if (!raw) return null;
+    const obj = JSON.parse(raw);
+    const t = obj[trackIndex];
+    return (typeof t === 'number' && t > 0) ? t : null;
+  } catch (_) { return null; }
+}
+
+function saveBestTime(trackIndex, time) {
+  try {
+    const raw = localStorage.getItem(BEST_TIMES_KEY);
+    const obj = raw ? JSON.parse(raw) : {};
+    const prev = obj[trackIndex];
+    if (prev === undefined || prev === null || time < prev) {
+      obj[trackIndex] = time;
+      localStorage.setItem(BEST_TIMES_KEY, JSON.stringify(obj));
+      return true; // new record
+    }
+    return false;
+  } catch (_) { return false; }
+}
+
+// ── Time formatting ─────────────────────────────────────────────────────────
+
+function formatTime(ms) {
+  const totalSec = ms / 1000;
+  const min = Math.floor(totalSec / 60);
+  const sec = Math.floor(totalSec % 60);
+  const hundredths = Math.floor((totalSec % 1) * 100);
+  return `${String(min).padStart(2, '0')}:${String(sec).padStart(2, '0')}.${String(hundredths).padStart(2, '0')}`;
+}
+
+// ── Screen management ───────────────────────────────────────────────────────
+
+const SCREEN_IDS = ['screen-title', 'screen-carselect', 'screen-trackselect', 'screen-countdown', 'screen-respawn', 'screen-finished', 'screen-pause'];
+
+function showScreen(name) {
+  for (const id of SCREEN_IDS) {
+    const el = document.getElementById(id);
+    if (!el) continue;
+    if (name && id === `screen-${name}`) {
+      el.classList.remove('hidden');
+    } else {
+      el.classList.add('hidden');
+    }
+  }
+  // Hide HUD when showing menu screens (not countdown/respawn)
+  if (name === 'title' || name === 'carselect' || name === 'trackselect' || name === 'finished' || name === 'pause') {
+    hideHUD();
+  }
+}
+
+function showHUD() { document.getElementById('hud').classList.remove('hidden'); }
+function hideHUD() { document.getElementById('hud').classList.add('hidden'); }
 
 // ── Init renderer ───────────────────────────────────────────────────────────
 
@@ -162,6 +230,12 @@ function spawnCars() {
     }
   }
 
+  // AI car styles — rotate through styles excluding the player's selected style
+  const aiStyles = [];
+  for (let s = 0; s < CAR_STYLE_NAMES.length; s++) {
+    if (s !== selectedStyle) aiStyles.push(s);
+  }
+
   // Create cars
   for (let i = 0; i < NUM_CARS; i++) {
     const car = new Car(world);
@@ -178,8 +252,9 @@ function spawnCars() {
 
     cars.push(car);
 
-    // Build 3D model (all use style 0 for now, different colors)
-    const model = buildCarModel(0, CAR_COLORS[i]);
+    // Build 3D model — player uses selectedStyle, AI cars rotate through other styles
+    const style = i === 0 ? selectedStyle : aiStyles[(i - 1) % aiStyles.length];
+    const model = buildCarModel(style, CAR_COLORS[i]);
     model.castShadow = true;
     scene.add(model);
     carModels.push(model);
@@ -232,10 +307,319 @@ function respawnPlayer() {
   car._bounceTimer = 0;
 }
 
-// ── HUD (no-op placeholder for Task 9) ────────────────────────────────────
+// ── HUD update ──────────────────────────────────────────────────────────────
 
 function updateHUD() {
-  // Will be implemented in Task 9
+  const state = gameState.state;
+
+  // Countdown number
+  if (state === 'countdown') {
+    const num = gameState.countdownNumber;
+    const cdEl = document.getElementById('countdown-number');
+    if (cdEl) {
+      const text = num > 0 ? String(num) : 'GO!';
+      if (cdEl.textContent !== text) {
+        cdEl.textContent = text;
+        // Re-trigger animation
+        cdEl.style.animation = 'none';
+        cdEl.offsetHeight; // force reflow
+        cdEl.style.animation = '';
+      }
+    }
+  }
+
+  // Respawn overlay
+  const respawnEl = document.getElementById('screen-respawn');
+  if (respawnEl) {
+    if (respawnTimer > 0 && (state === 'racing' || state === 'finishing')) {
+      respawnEl.classList.remove('hidden');
+    } else {
+      respawnEl.classList.add('hidden');
+    }
+  }
+
+  if (state === 'racing' || state === 'finishing') {
+    // Lap
+    const laps = Math.min((cars[0].lapsCompleted || 0) + 1, NUM_LAPS);
+    const lapEl = document.getElementById('hud-lap');
+    if (lapEl) lapEl.textContent = `LAP ${laps}/${NUM_LAPS}`;
+
+    // Timer
+    const timeEl = document.getElementById('hud-time');
+    if (timeEl) timeEl.textContent = formatTime(gameState.raceTime);
+
+    // Best time
+    const bestEl = document.getElementById('hud-best');
+    if (bestEl) {
+      const best = getBestTime(currentTrackIndex);
+      bestEl.textContent = best !== null ? `BEST ${formatTime(best)}` : 'BEST --:--.--';
+    }
+
+    // Speed (approximate km/h: speed * 0.36)
+    const speedEl = document.getElementById('hud-speed');
+    if (speedEl) {
+      const kmh = Math.round(Math.abs(cars[0].speed) * 0.36);
+      speedEl.textContent = `${kmh} km/h`;
+    }
+
+    // Position
+    const posEl = document.getElementById('hud-pos');
+    if (posEl && cl) {
+      const standings = rankStandings(cars, (car) =>
+        computeProgress(
+          { x: car.physX, y: car.physY },
+          car.currentWaypointIdx,
+          centerLine, cl, car.lapsCompleted || 0
+        )
+      );
+      const playerStanding = standings.find(s => s.idx === 0);
+      const pos = playerStanding ? playerStanding.position : 1;
+      posEl.textContent = `POS ${pos}/${NUM_CARS}`;
+    }
+  }
+}
+
+// ── Car select ──────────────────────────────────────────────────────────────
+
+function buildCarGrid() {
+  const grid = document.getElementById('car-grid');
+  if (!grid) return;
+  grid.innerHTML = '';
+
+  for (let i = 0; i < CAR_STYLE_NAMES.length; i++) {
+    const card = document.createElement('div');
+    card.className = 'car-card';
+    const unlocked = isCarUnlocked(i);
+
+    if (!unlocked) card.classList.add('locked');
+    if (i === selectedStyle) card.classList.add('selected');
+
+    let html = CAR_STYLE_NAMES[i];
+    if (!unlocked) {
+      html += `<div class="cost">🔒 ${UNLOCK_COST} GOLD</div>`;
+    }
+    card.innerHTML = html;
+
+    card.addEventListener('click', () => {
+      playClick();
+      hapticTap();
+
+      if (!isCarUnlocked(i)) {
+        // Try to unlock
+        if (unlockCar(i)) {
+          // Successfully unlocked — refresh grid
+          selectedStyle = i;
+          buildCarGrid();
+          updateGoldDisplay();
+        }
+        return;
+      }
+      // Select this car
+      selectedStyle = i;
+      showTrackSelect();
+    });
+
+    grid.appendChild(card);
+  }
+}
+
+function updateGoldDisplay() {
+  const el = document.getElementById('gold-amount');
+  if (el) el.textContent = String(getGold());
+}
+
+function showCarSelect() {
+  showScreen('carselect');
+  buildCarGrid();
+  updateGoldDisplay();
+}
+
+// ── Track select ────────────────────────────────────────────────────────────
+
+function buildTrackGrid() {
+  const grid = document.getElementById('track-grid');
+  if (!grid) return;
+  grid.innerHTML = '';
+
+  for (let i = 0; i < TRACK_SEEDS.length; i++) {
+    const card = document.createElement('div');
+    card.className = 'track-card';
+
+    const num = String(i + 1).padStart(2, '0');
+    let html = `TRACK ${num}`;
+    const best = getBestTime(i);
+    if (best !== null) {
+      html += `<div class="track-best">BEST ${formatTime(best)}</div>`;
+    }
+    card.innerHTML = html;
+
+    card.addEventListener('click', () => {
+      playClick();
+      hapticTap();
+      currentTrackIndex = i;
+      startRace(TRACK_SEEDS[i]);
+    });
+
+    grid.appendChild(card);
+  }
+}
+
+function showTrackSelect() {
+  showScreen('trackselect');
+  buildTrackGrid();
+}
+
+// ── Start race ──────────────────────────────────────────────────────────────
+
+function startRace(seed) {
+  if (finishShownTimeout) {
+    clearTimeout(finishShownTimeout);
+    finishShownTimeout = null;
+  }
+  earnedGold = 0;
+  initTrack(seed);
+  spawnCars();
+  gameState.startCountdown();
+  prevCountdown = COUNTDOWN_SECONDS;
+
+  showScreen('countdown');
+  showHUD();
+
+  // Update best time display on HUD
+  const bestEl = document.getElementById('hud-best');
+  if (bestEl) {
+    const best = getBestTime(currentTrackIndex);
+    bestEl.textContent = best !== null ? `BEST ${formatTime(best)}` : 'BEST --:--.--';
+  }
+
+  lastTime = 0;
+  accumulator = 0;
+}
+
+// ── Finish handling ─────────────────────────────────────────────────────────
+
+function positionSuffix(pos) {
+  if (pos === 1) return '1ST';
+  if (pos === 2) return '2ND';
+  if (pos === 3) return '3RD';
+  return `${pos}TH`;
+}
+
+function showFinishScreen(position, gold) {
+  const posEl = document.getElementById('finish-position');
+  if (posEl) posEl.textContent = positionSuffix(position);
+
+  const timeEl = document.getElementById('finish-time');
+  if (timeEl) timeEl.textContent = `TIME: ${formatTime(gameState.raceTime)}`;
+
+  const bestEl = document.getElementById('finish-best');
+  if (bestEl) {
+    const best = getBestTime(currentTrackIndex);
+    bestEl.textContent = best !== null ? `BEST: ${formatTime(best)}` : '';
+  }
+
+  const goldEl = document.getElementById('finish-gold');
+  if (goldEl) goldEl.textContent = gold > 0 ? `+${gold} GOLD` : '';
+
+  showScreen('finished');
+}
+
+// ── Button handlers ─────────────────────────────────────────────────────────
+
+function setupButtons() {
+  // Title: RACE
+  document.getElementById('btn-race').addEventListener('click', () => {
+    playClick();
+    hapticTap();
+    showCarSelect();
+  });
+
+  // Track select: BACK
+  document.getElementById('btn-back-car').addEventListener('click', () => {
+    playClick();
+    hapticTap();
+    showCarSelect();
+  });
+
+  // HUD: Pause
+  document.getElementById('btn-pause').addEventListener('click', () => {
+    playClick();
+    hapticTap();
+    gameState.pause();
+    showScreen('pause');
+    updateToggles();
+  });
+
+  // Pause: Resume
+  document.getElementById('btn-resume').addEventListener('click', () => {
+    playClick();
+    hapticTap();
+    gameState.resume();
+    showScreen(null);
+    showHUD();
+  });
+
+  // Pause: Retry
+  document.getElementById('btn-retry').addEventListener('click', () => {
+    playClick();
+    hapticTap();
+    startRace(TRACK_SEEDS[currentTrackIndex]);
+  });
+
+  // Pause: Quit
+  document.getElementById('btn-quit').addEventListener('click', () => {
+    playClick();
+    hapticTap();
+    gameState.reset();
+    showScreen('title');
+  });
+
+  // Finished: Next Race
+  document.getElementById('btn-next').addEventListener('click', () => {
+    playClick();
+    hapticTap();
+    currentTrackIndex = (currentTrackIndex + 1) % TRACK_SEEDS.length;
+    startRace(TRACK_SEEDS[currentTrackIndex]);
+  });
+
+  // Finished: Menu
+  document.getElementById('btn-menu').addEventListener('click', () => {
+    playClick();
+    hapticTap();
+    gameState.reset();
+    showScreen('title');
+  });
+
+  // SFX toggle
+  document.getElementById('btn-sfx').addEventListener('click', () => {
+    const newVal = !getSfxEnabled();
+    setSfxEnabled(newVal);
+    updateToggles();
+    playClick();
+    hapticTap();
+  });
+
+  // Haptics toggle
+  document.getElementById('btn-haptics').addEventListener('click', () => {
+    const newVal = !getHapticsEnabled();
+    setHapticsEnabled(newVal);
+    updateToggles();
+    playClick();
+    hapticTap();
+  });
+}
+
+function updateToggles() {
+  const sfxBtn = document.getElementById('btn-sfx');
+  const hapBtn = document.getElementById('btn-haptics');
+  if (sfxBtn) {
+    sfxBtn.textContent = getSfxEnabled() ? 'ON' : 'OFF';
+    sfxBtn.classList.toggle('active', getSfxEnabled());
+  }
+  if (hapBtn) {
+    hapBtn.textContent = getHapticsEnabled() ? 'ON' : 'OFF';
+    hapBtn.classList.toggle('active', getHapticsEnabled());
+  }
 }
 
 // ── Fixed update ────────────────────────────────────────────────────────────
@@ -255,6 +639,8 @@ function fixedUpdate() {
     // GO!
     if (done) {
       playGoBeep();
+      showScreen(null);
+      showHUD();
     }
     return;
   }
@@ -345,10 +731,22 @@ function fixedUpdate() {
       const playerStanding = standings.find(s => s.idx === 0);
       const position = playerStanding ? playerStanding.position : 4;
       const gold = GOLD_REWARDS[position - 1] || 0;
+      earnedGold = gold;
       if (gold > 0) addGold(gold);
 
+      // Save best time
+      const previousBest = getBestTime(currentTrackIndex);
+      const isNew = saveBestTime(currentTrackIndex, gameState.raceTime);
+      gameState.isNewRecord = isNew;
+
       // Finish the game state
-      gameState.finish(null);
+      gameState.finish(previousBest);
+
+      // Show finish screen after ~2 second delay
+      finishShownTimeout = setTimeout(() => {
+        showFinishScreen(position, earnedGold);
+        finishShownTimeout = null;
+      }, 2000);
     }
 
     // Handle respawn timer
@@ -411,16 +809,23 @@ function gameLoop(timestamp) {
   renderFrame(dt);
 }
 
-// ── Start test race (skip menus for now) ────────────────────────────────────
+// ── Boot ────────────────────────────────────────────────────────────────────
 
-function startTestRace() {
-  initTrack(TRACK_SEEDS[0]);
-  spawnCars();
-  gameState.startCountdown();
-  prevCountdown = COUNTDOWN_SECONDS;
+function boot() {
+  // Set version text
+  const versionEl = document.getElementById('version-text');
+  if (versionEl) versionEl.textContent = VERSION;
+
+  // Setup button handlers
+  setupButtons();
+
+  // Show title screen
+  showScreen('title');
+
+  // Start game loop (renders even on title for background scene)
   lastTime = 0;
   accumulator = 0;
   requestAnimationFrame(gameLoop);
 }
 
-startTestRace();
+boot();

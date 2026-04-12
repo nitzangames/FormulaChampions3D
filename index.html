@@ -9,7 +9,73 @@
 </head>
 <body>
   <canvas id="game-canvas"></canvas>
-  <div id="ui"></div>
+  <div id="ui">
+    <!-- Title Screen -->
+    <div id="screen-title" class="screen">
+      <h1 class="game-title">MINI GT 3D</h1>
+      <button id="btn-race" class="btn-primary">RACE</button>
+      <div class="version" id="version-text"></div>
+    </div>
+
+    <!-- Car Select -->
+    <div id="screen-carselect" class="screen hidden">
+      <h2>SELECT CAR</h2>
+      <div id="car-grid" class="car-grid"></div>
+      <div class="gold-display"><span id="gold-amount">0</span> GOLD</div>
+    </div>
+
+    <!-- Track Select -->
+    <div id="screen-trackselect" class="screen hidden">
+      <h2>SELECT TRACK</h2>
+      <div id="track-grid" class="track-grid"></div>
+      <button id="btn-back-car" class="btn-secondary">BACK</button>
+    </div>
+
+    <!-- Racing HUD -->
+    <div id="hud" class="hidden">
+      <div class="hud-top">
+        <div class="hud-left"><div id="hud-lap" class="hud-text">LAP 1/3</div></div>
+        <div class="hud-center">
+          <div id="hud-time" class="hud-text">00:00.00</div>
+          <div id="hud-best" class="hud-text-small">BEST --:--.--</div>
+        </div>
+        <div class="hud-right"><button id="btn-pause" class="btn-icon">II</button></div>
+      </div>
+      <div id="hud-pos" class="hud-position">POS 1/4</div>
+      <div class="hud-bottom"><div id="hud-speed" class="hud-speed">0 km/h</div></div>
+    </div>
+
+    <!-- Countdown -->
+    <div id="screen-countdown" class="screen hidden">
+      <div id="countdown-number" class="countdown-text">3</div>
+    </div>
+
+    <!-- Respawn -->
+    <div id="screen-respawn" class="screen hidden">
+      <div class="respawn-text">RESPAWNING</div>
+    </div>
+
+    <!-- Finished -->
+    <div id="screen-finished" class="screen hidden">
+      <h2>RACE COMPLETE</h2>
+      <div id="finish-position" class="finish-pos">1ST</div>
+      <div id="finish-time" class="finish-detail"></div>
+      <div id="finish-best" class="finish-detail"></div>
+      <div id="finish-gold" class="finish-detail"></div>
+      <button id="btn-next" class="btn-primary">NEXT RACE</button>
+      <button id="btn-menu" class="btn-secondary">MENU</button>
+    </div>
+
+    <!-- Pause -->
+    <div id="screen-pause" class="screen hidden">
+      <h2>PAUSED</h2>
+      <button id="btn-resume" class="btn-primary">RESUME</button>
+      <button id="btn-retry" class="btn-secondary">RETRY</button>
+      <button id="btn-quit" class="btn-secondary">QUIT</button>
+      <div class="toggle-row"><label>SFX</label><button id="btn-sfx" class="btn-toggle">ON</button></div>
+      <div class="toggle-row"><label>HAPTICS</label><button id="btn-haptics" class="btn-toggle">ON</button></div>
+    </div>
+  </div>
   <div id="err"></div>
   <script>
     window.onerror = function(msg, src, line, col, err) {

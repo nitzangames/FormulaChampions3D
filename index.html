@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Mini GT 3D</title>
+  <link rel="stylesheet" href="css/ui.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+</head>
+<body>
+  <canvas id="game-canvas"></canvas>
+  <div id="ui"></div>
+  <div id="err"></div>
+  <script>
+    window.onerror = function(msg, src, line, col, err) {
+      var el = document.getElementById('err');
+      el.style.display = 'block';
+      el.textContent = msg;
+      fetch('/__log_error', { method: 'POST', body: msg + ' at ' + src + ':' + line });
+    };
+    window.addEventListener('unhandledrejection', function(e) {
+      var el = document.getElementById('err');
+      el.style.display = 'block';
+      el.textContent = e.reason;
+      fetch('/__log_error', { method: 'POST', body: String(e.reason) });
+    });
+  </script>
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>

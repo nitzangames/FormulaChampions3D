@@ -199,7 +199,7 @@ function initTrack(seed) {
   buildTrack3D(getScene(), centerLine, walls, track);
 
   // Build scenery (trees, etc.)
-  buildScenery(getScene(), centerLine, walls);
+  buildScenery(getScene(), centerLine, walls, track);
 }
 
 // ── Car spawning ────────────────────────────────────────────────────────────

@@ -1,4 +1,4 @@
-import { PX_TO_WORLD } from './constants.js';
+import { PX_TO_WORLD, TILE } from './constants.js';
 
 let sceneryGroup = null;
 
@@ -31,25 +31,61 @@ function buildTree() {
 
 /**
  * Place trees along both sides of the track, offset from the actual wall paths.
+ * Skips any position that falls inside a track tile (prevents trees on
+ * adjacent track sections).
  * @param {THREE.Scene} scene
  * @param {{x:number,y:number}[]} centerLine - 2D pixel centerline
  * @param {{left:{x:number,y:number}[], right:{x:number,y:number}[]}} walls
+ * @param {object} track - track data with tiles array (for tile occupancy check)
  */
-export function buildScenery(scene, centerLine, walls) {
+export function buildScenery(scene, centerLine, walls, track) {
   if (sceneryGroup) disposeScenery();
 
   sceneryGroup = new THREE.Group();
   scene.add(sceneryGroup);
 
-  const n = centerLine.length;
+  // Build a set of occupied grid cells for fast lookup
+  const occupied = new Set();
+  if (track && track.tiles) {
+    for (const tile of track.tiles) {
+      if (tile.cells) {
+        for (const cell of tile.cells) {
+          occupied.add(cell.x + ',' + cell.y);
+        }
+      }
+    }
+  }
 
-  // Place trees using the wall path positions, offset outward from the track.
-  // This guarantees trees are always outside the walls, even on curves.
+  // Convert a world-unit position back to grid cell coordinates
+  function worldToGridCell(wx, wz) {
+    const px = wx / PX_TO_WORLD;
+    const py = wz / PX_TO_WORLD;
+    // Tile grid: each cell is TILE pixels. Tiles center at (gx*TILE + TILE/2, gy*TILE + TILE/2)
+    // So cell gx = floor(px / TILE), gy = floor(py / TILE)
+    return { x: Math.floor(px / TILE), y: Math.floor(py / TILE) };
+  }
+
+  function isInTrack(wx, wz) {
+    const cell = worldToGridCell(wx, wz);
+    return occupied.has(cell.x + ',' + cell.y);
+  }
+
+  function tryPlaceTree(wx, wz) {
+    if (isInTrack(wx, wz)) return;
+    const tree = buildTree();
+    tree.position.x = wx;
+    tree.position.z = wz;
+    tree.rotation.y = Math.random() * Math.PI * 2;
+    const s = 0.8 + Math.random() * 0.6;
+    tree.scale.set(s, s, s);
+    sceneryGroup.add(tree);
+  }
+
+  const n = centerLine.length;
   const step = 8;
   for (let i = 0; i < n; i += step) {
     if (Math.random() > 0.6) continue;
 
-    // Get wall positions (wall paths may have an extra closing point)
     const li = Math.min(i, walls.left.length - 1);
     const ri = Math.min(i, walls.right.length - 1);
     const ci = centerLine[i];
@@ -57,7 +93,7 @@ export function buildScenery(scene, centerLine, walls) {
     const lw = walls.left[li];
     const rw = walls.right[ri];
 
-    // Direction from center to left wall = outward direction for left side
+    // Outward direction from centerline to left wall (normalized)
     const ldx = (lw.x - ci.x) * PX_TO_WORLD;
     const ldz = (lw.y - ci.y) * PX_TO_WORLD;
     const lLen = Math.sqrt(ldx * ldx + ldz * ldz) || 1;
@@ -70,25 +106,17 @@ export function buildScenery(scene, centerLine, walls) {
     const rNx = rdx / rLen;
     const rNz = rdz / rLen;
 
-    // Place tree on left side — start from wall position, offset further out
-    const extraDist = 2 + Math.random() * 6;
-    const leftTree = buildTree();
-    leftTree.position.x = lw.x * PX_TO_WORLD + lNx * extraDist;
-    leftTree.position.z = lw.y * PX_TO_WORLD + lNz * extraDist;
-    leftTree.rotation.y = Math.random() * Math.PI * 2;
-    const s1 = 0.8 + Math.random() * 0.6;
-    leftTree.scale.set(s1, s1, s1);
-    sceneryGroup.add(leftTree);
+    // Left-side tree
+    const d1 = 2 + Math.random() * 6;
+    const lx = lw.x * PX_TO_WORLD + lNx * d1;
+    const lz = lw.y * PX_TO_WORLD + lNz * d1;
+    tryPlaceTree(lx, lz);
 
-    // Place tree on right side
-    const rightTree = buildTree();
-    const extraDist2 = 2 + Math.random() * 6;
-    rightTree.position.x = rw.x * PX_TO_WORLD + rNx * extraDist2;
-    rightTree.position.z = rw.y * PX_TO_WORLD + rNz * extraDist2;
-    rightTree.rotation.y = Math.random() * Math.PI * 2;
-    const s2 = 0.8 + Math.random() * 0.6;
-    rightTree.scale.set(s2, s2, s2);
-    sceneryGroup.add(rightTree);
+    // Right-side tree
+    const d2 = 2 + Math.random() * 6;
+    const rx = rw.x * PX_TO_WORLD + rNx * d2;
+    const rz = rw.y * PX_TO_WORLD + rNz * d2;
+    tryPlaceTree(rx, rz);
   }
 }
 

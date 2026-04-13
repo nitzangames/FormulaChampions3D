@@ -1,5 +1,5 @@
 // Identity
-export const VERSION = 'v0.1.3';
+export const VERSION = 'v0.2.0';
 
 // Display
 export const GAME_W = 1080;
@@ -109,3 +109,9 @@ export const TRACK_SEEDS = [
   444999666, 111333555,
   888111444, 222666999,
 ];
+
+export const MP_SNAPSHOT_HZ = 20;
+export const MP_SNAPSHOT_INTERVAL_MS = 1000 / MP_SNAPSHOT_HZ;
+export const MP_BUFFER_MS = 100;
+export const MP_MAX_PLAYERS = 4;
+export const MP_FINISH_GRACE_MS = 30000;

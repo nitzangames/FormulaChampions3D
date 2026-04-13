@@ -6,6 +6,7 @@
   <title>Formula Champions 3D</title>
   <link rel="stylesheet" href="css/ui.css">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn-play.nitzan.games/lib/play-sdk.js"></script>
 </head>
 <body>
   <canvas id="game-canvas"></canvas>
@@ -17,6 +18,7 @@
       <button id="btn-new-career" class="btn-primary">NEW CAREER</button>
       <button id="btn-continue-career" class="btn-secondary hidden">CONTINUE</button>
       <button id="btn-quick-race" class="btn-secondary">QUICK RACE</button>
+      <button id="btn-multiplayer" class="btn-secondary">MULTIPLAYER</button>
       <div class="version" id="version-text"></div>
     </div>
 
@@ -32,6 +34,34 @@
       <h2>SELECT TRACK</h2>
       <div id="quicktrack-grid" class="track-grid"></div>
       <button id="btn-quicktrack-back" class="btn-secondary">BACK</button>
+    </div>
+
+    <!-- Multiplayer: Host picks track + tier -->
+    <div id="screen-mphostpick" class="screen hidden">
+      <h2>CHOOSE RACE</h2>
+      <p class="subtitle">Select a class, then a track. Everyone will race.</p>
+      <div class="mp-section-label">CLASS</div>
+      <div id="mp-tier-grid" class="tier-grid"></div>
+      <div class="mp-section-label">TRACK</div>
+      <div id="mp-track-grid" class="track-grid"></div>
+      <button id="btn-mphostpick-confirm" class="btn-primary">START RACE</button>
+      <button id="btn-mphostpick-leave" class="btn-secondary">LEAVE ROOM</button>
+    </div>
+
+    <!-- Multiplayer: Non-host waiting for host -->
+    <div id="screen-mpwaiting" class="screen hidden">
+      <h2 id="mpwaiting-title">WAITING</h2>
+      <p class="subtitle" id="mpwaiting-subtitle">Host is choosing the next race...</p>
+      <button id="btn-mpwaiting-leave" class="btn-secondary">LEAVE ROOM</button>
+    </div>
+
+    <!-- Multiplayer: Race results -->
+    <div id="screen-mpresults" class="screen hidden">
+      <h2>RACE RESULTS</h2>
+      <div id="mpresults-standings" class="standings-mini"></div>
+      <button id="btn-mpresults-next" class="btn-primary hidden">NEXT RACE</button>
+      <div id="mpresults-waiting" class="subtitle hidden">Waiting for host to pick next track...</div>
+      <button id="btn-mpresults-leave" class="btn-secondary">LEAVE ROOM</button>
     </div>
 
     <!-- Season Setup -->

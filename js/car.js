@@ -22,8 +22,9 @@ import {
 const ANGLE_OFFSET = Math.PI / 2;
 
 export class Car {
-  constructor(world) {
+  constructor(world, { isKinematic = false } = {}) {
     this.world = world;
+    this.isKinematic = isKinematic;
     this.body = null;
     this.speed = 0;       // current forward speed px/s
     this.crashed = false;
@@ -56,7 +57,8 @@ export class Car {
     this.body = new Body({
       shape,
       position: new Vec2(x, y),
-      mass: CAR_MASS,
+      mass: this.isKinematic ? 0 : CAR_MASS,
+      isStatic: this.isKinematic,
       restitution: CAR_RESTITUTION,
       friction: CAR_FRICTION,
       angle: angle - ANGLE_OFFSET, // convert visual → capsule
@@ -78,6 +80,7 @@ export class Car {
    * Applies steering and sets velocity in the forward direction.
    */
   update(steering) {
+    if (this.isKinematic) return;
     if (!this.body || this.crashed) return;
 
     // Bounce-coast lockout: after a glancing wall hit we slide along
@@ -141,6 +144,7 @@ export class Car {
    * Called AFTER world.step() to read back velocity (physics may have changed it via collisions).
    */
   postPhysicsUpdate() {
+    if (this.isKinematic) return;
     if (!this.body || this.crashed) return;
 
     const vx = this.body.velocity.x;

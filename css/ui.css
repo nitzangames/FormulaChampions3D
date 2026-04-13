@@ -29,10 +29,10 @@ html, body {
   touch-action: none;
 }
 
+/* #ui: locked to the 9:16 canvas box. container-type: size enables cqh/cqw
+   units so every element below scales with the canvas, not the browser. */
 #ui {
   position: absolute;
-  /* Match the game canvas aspect ratio (9:16) with letterboxing,
-     so HUD elements stay inside the visible game area */
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
@@ -42,27 +42,15 @@ html, body {
   max-height: 100vh;
   pointer-events: none;
   color: #fff;
+  container-type: size;
 }
 
-#ui > * {
-  pointer-events: auto;
-}
+#ui > * { pointer-events: auto; }
+#hud { pointer-events: none; }
+#hud .btn-icon { pointer-events: auto; }
 
-#hud {
-  pointer-events: none;
-}
-
-#hud .btn-icon {
-  pointer-events: auto;
-}
-
-/* Non-interactive overlays — let pointer events pass through to the canvas
-   so the player can start a drag (and see the steering wheel) even during
-   countdown / respawn. */
 #screen-countdown,
-#screen-respawn {
-  pointer-events: none;
-}
+#screen-respawn { pointer-events: none; }
 
 .hidden { display: none !important; }
 
@@ -78,83 +66,139 @@ html, body {
 }
 
 /* ── Screens ─────────────────────────────────────────────────────────────── */
+/* Reference frame: 1080 × 1920. 1cqh = 19.2px, 1cqw = 10.8px.              */
 
-.screen { position: absolute; top: 0; left: 0; right: 0; bottom: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 20px; }
-.game-title { font-size: 64px; font-weight: 900; letter-spacing: 4px; text-shadow: 0 4px 8px rgba(0,0,0,0.5); }
-.btn-primary { background: #e63946; color: #fff; border: none; padding: 16px 48px; font-size: 24px; font-weight: 700; border-radius: 8px; cursor: pointer; letter-spacing: 2px; }
+.screen {
+  position: absolute; inset: 0;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  gap: 2cqh;
+}
+.game-title {
+  font-size: 5cqh;
+  font-weight: 900;
+  letter-spacing: 0.2cqh;
+  text-shadow: 0 0.2cqh 0.4cqh rgba(0,0,0,0.5);
+}
+.btn-primary {
+  background: #e63946; color: #fff; border: none;
+  padding: 1.4cqh 4cqh;
+  font-size: 2.2cqh; font-weight: 700;
+  border-radius: 0.8cqh; cursor: pointer;
+  letter-spacing: 0.2cqh;
+}
 .btn-primary:active { transform: scale(0.95); }
-.btn-secondary { background: rgba(255,255,255,0.15); color: #fff; border: 1px solid rgba(255,255,255,0.3); padding: 12px 32px; font-size: 18px; font-weight: 600; border-radius: 8px; cursor: pointer; }
-.btn-icon { background: rgba(0,0,0,0.4); color: #fff; border: none; width: 40px; height: 40px; font-size: 18px; font-weight: 700; border-radius: 8px; cursor: pointer; }
-.version { position: absolute; bottom: 16px; font-size: 12px; opacity: 0.5; }
+.btn-secondary {
+  background: rgba(255,255,255,0.15); color: #fff;
+  border: 1px solid rgba(255,255,255,0.3);
+  padding: 1.1cqh 2.8cqh;
+  font-size: 1.8cqh; font-weight: 600;
+  border-radius: 0.8cqh; cursor: pointer;
+}
+.btn-icon {
+  background: rgba(0,0,0,0.4); color: #fff; border: none;
+  width: 4cqh; height: 4cqh;
+  font-size: 1.8cqh; font-weight: 700;
+  border-radius: 0.8cqh; cursor: pointer;
+}
+.version { position: absolute; bottom: 1.6cqh; font-size: 1.2cqh; opacity: 0.5; }
 
 /* ── Car Select ──────────────────────────────────────────────────────────── */
 
-.car-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; padding: 0 20px; max-width: 400px; }
-.car-card { background: rgba(255,255,255,0.1); border: 2px solid rgba(255,255,255,0.2); border-radius: 8px; padding: 16px; text-align: center; cursor: pointer; font-size: 14px; font-weight: 600; }
+.car-grid {
+  display: grid; grid-template-columns: repeat(2, 1fr);
+  gap: 1.2cqh; padding: 0 2cqh; max-width: 40cqw;
+}
+.car-card {
+  background: rgba(255,255,255,0.1);
+  border: 2px solid rgba(255,255,255,0.2);
+  border-radius: 0.8cqh;
+  padding: 1.6cqh;
+  text-align: center; cursor: pointer;
+  font-size: 1.4cqh; font-weight: 600;
+}
 .car-card.selected { border-color: #4ecdc4; background: rgba(78,205,196,0.15); }
 .car-card.locked { opacity: 0.5; }
-.car-card .cost { font-size: 12px; color: #ffaa00; margin-top: 4px; }
-.gold-display { font-size: 18px; color: #ffaa00; font-weight: 700; }
+.car-card .cost { font-size: 1.2cqh; color: #ffaa00; margin-top: 0.4cqh; }
+.gold-display { font-size: 1.8cqh; color: #ffaa00; font-weight: 700; }
 
 /* ── Track Select ────────────────────────────────────────────────────────── */
 
-.track-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; padding: 0 20px; max-width: 400px; max-height: 60vh; overflow-y: auto; }
-.track-card { background: rgba(255,255,255,0.1); border: 2px solid rgba(255,255,255,0.2); border-radius: 8px; padding: 12px; text-align: center; cursor: pointer; font-size: 16px; font-weight: 600; }
-.track-card:active { border-color: #4ecdc4; }
-.track-card .track-best { font-size: 11px; color: #aaa; margin-top: 4px; }
+.track-card .track-best { font-size: 1.1cqh; color: #aaa; margin-top: 0.4cqh; }
 
 /* ── HUD ─────────────────────────────────────────────────────────────────── */
 
-.hud-top { position: absolute; top: 0; left: 0; right: 0; display: flex; justify-content: space-between; align-items: flex-start; padding: 12px 16px; }
+.hud-top {
+  position: absolute; top: 0; left: 0; right: 0;
+  display: flex; justify-content: space-between; align-items: flex-start;
+  padding: 1.2cqh 1.6cqh;
+}
 .hud-left, .hud-center, .hud-right { display: flex; flex-direction: column; align-items: center; }
-.hud-text { font-size: 20px; font-weight: 700; text-shadow: 0 2px 4px rgba(0,0,0,0.6); }
-.hud-text-small { font-size: 13px; color: #4ecdc4; text-shadow: 0 1px 3px rgba(0,0,0,0.6); }
-.hud-position { position: absolute; top: 60px; width: 100%; text-align: center; font-size: 28px; font-weight: 900; text-shadow: 0 2px 6px rgba(0,0,0,0.6); }
-.hud-bottom { position: absolute; bottom: 20px; right: 20px; }
-.hud-speed { font-size: 22px; font-weight: 700; text-shadow: 0 2px 4px rgba(0,0,0,0.6); }
+.hud-text { font-size: 2cqh; font-weight: 700; text-shadow: 0 0.2cqh 0.4cqh rgba(0,0,0,0.6); }
+.hud-text-small { font-size: 1.3cqh; color: #4ecdc4; text-shadow: 0 0.1cqh 0.3cqh rgba(0,0,0,0.6); }
+.hud-position {
+  position: absolute; top: 6cqh;
+  width: 100%; text-align: center;
+  font-size: 2.8cqh; font-weight: 900;
+  text-shadow: 0 0.2cqh 0.6cqh rgba(0,0,0,0.6);
+}
+.hud-bottom { position: absolute; bottom: 2cqh; right: 2cqh; }
+.hud-speed { font-size: 2.2cqh; font-weight: 700; text-shadow: 0 0.2cqh 0.4cqh rgba(0,0,0,0.6); }
 
 /* ── Countdown ───────────────────────────────────────────────────────────── */
 
-.countdown-text { font-size: 120px; font-weight: 900; text-shadow: 0 4px 12px rgba(0,0,0,0.5); animation: countPulse 0.5s ease-out; }
+.countdown-text {
+  font-size: 10cqh; font-weight: 900;
+  text-shadow: 0 0.4cqh 1.2cqh rgba(0,0,0,0.5);
+  animation: countPulse 0.5s ease-out;
+}
 @keyframes countPulse { from { transform: scale(1.5); opacity: 0.5; } to { transform: scale(1); opacity: 1; } }
 
 /* ── Respawn ─────────────────────────────────────────────────────────────── */
 
-.respawn-text { font-size: 32px; font-weight: 700; color: #ff6b6b; text-shadow: 0 2px 6px rgba(0,0,0,0.6); animation: blink 0.5s ease-in-out infinite alternate; }
+.respawn-text {
+  font-size: 3cqh; font-weight: 700; color: #ff6b6b;
+  text-shadow: 0 0.2cqh 0.6cqh rgba(0,0,0,0.6);
+  animation: blink 0.5s ease-in-out infinite alternate;
+}
 @keyframes blink { from { opacity: 0.4; } to { opacity: 1; } }
 
 /* ── Finish ───────────────────────────────────────────────────────────────── */
 
-.finish-pos { font-size: 64px; font-weight: 900; text-shadow: 0 4px 8px rgba(0,0,0,0.5); }
-.finish-detail { font-size: 16px; color: #ccc; }
+.finish-pos { font-size: 5cqh; font-weight: 900; text-shadow: 0 0.4cqh 0.8cqh rgba(0,0,0,0.5); }
+.finish-detail { font-size: 1.6cqh; color: #ccc; }
 
-/* Results screen — everything 2x except the Continue button */
-#screen-finished h2 { font-size: 56px; }
-#screen-finished .finish-pos { font-size: 128px; }
-#screen-finished .finish-detail { font-size: 32px; }
-#screen-finished .finish-points { font-size: 40px !important; }
+#screen-finished h2 { font-size: 4cqh; }
+#screen-finished .finish-pos { font-size: 9cqh; }
+#screen-finished .finish-detail { font-size: 2.4cqh; }
+#screen-finished .finish-points { font-size: 3cqh !important; }
 #screen-finished .standings-mini {
-  max-width: 540px;
-  font-size: 26px;
-  padding: 16px 24px;
+  max-width: 55cqw;
+  font-size: 2cqh;
+  padding: 1.2cqh 1.8cqh;
 }
-#screen-finished .standings-mini .pos { width: 56px; }
+#screen-finished .standings-mini .pos { width: 4cqh; }
 
 /* ── Toggle ───────────────────────────────────────────────────────────────── */
 
-.toggle-row { display: flex; align-items: center; gap: 12px; font-size: 16px; }
-.btn-toggle { background: rgba(255,255,255,0.2); color: #fff; border: 1px solid rgba(255,255,255,0.3); padding: 6px 16px; font-size: 14px; border-radius: 4px; cursor: pointer; min-width: 50px; }
+.toggle-row { display: flex; align-items: center; gap: 1.2cqh; font-size: 1.6cqh; }
+.btn-toggle {
+  background: rgba(255,255,255,0.2); color: #fff;
+  border: 1px solid rgba(255,255,255,0.3);
+  padding: 0.6cqh 1.6cqh; font-size: 1.4cqh;
+  border-radius: 0.4cqh; cursor: pointer;
+  min-width: 5cqh;
+}
 .btn-toggle.active { background: #4ecdc4; color: #000; }
 
 /* ── Minimap ─────────────────────────────────────────────────────────────── */
 
 #minimap {
   position: absolute;
-  bottom: 60px;
-  right: 16px;
-  width: 100px;
-  height: 100px;
-  border-radius: 8px;
+  bottom: 6cqh;
+  right: 1.6cqh;
+  width: 10cqh; height: 10cqh;
+  border-radius: 0.8cqh;
   background: rgba(0,0,0,0.5);
   border: 1px solid rgba(255,255,255,0.2);
 }
@@ -162,99 +206,70 @@ html, body {
 /* ── Career ──────────────────────────────────────────────────────────────── */
 
 .subtitle {
-  font-size: 14px;
-  color: #999;
-  margin-bottom: 8px;
-  text-align: center;
+  font-size: 1.4cqh; color: #999;
+  margin-bottom: 0.8cqh; text-align: center;
 }
 
 .btn-season {
-  font-size: 18px !important;
-  padding: 14px 28px !important;
-  min-width: 260px;
+  font-size: 1.8cqh !important;
+  padding: 1.4cqh 2.8cqh !important;
+  min-width: 26cqw;
 }
 
 .career-info {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
+  display: flex; flex-direction: column; gap: 0.8cqh;
   background: rgba(255,255,255,0.08);
-  padding: 16px 24px;
-  border-radius: 8px;
-  min-width: 260px;
+  padding: 1.6cqh 2.4cqh;
+  border-radius: 0.8cqh;
+  min-width: 26cqw;
 }
 .career-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  font-size: 15px;
-  color: #ccc;
+  display: flex; justify-content: space-between; align-items: center;
+  font-size: 1.5cqh; color: #ccc;
 }
-.career-row strong {
-  color: #fff;
-  font-size: 17px;
-  font-weight: 700;
-}
+.career-row strong { color: #fff; font-size: 1.7cqh; font-weight: 700; }
 
 .standings-mini {
-  max-width: 320px;
+  max-width: 32cqw;
   background: rgba(0,0,0,0.35);
   border: 1px solid rgba(255,255,255,0.15);
-  border-radius: 8px;
-  padding: 8px 12px;
-  font-size: 13px;
-  color: #ddd;
-  max-height: 30vh;
-  overflow-y: auto;
+  border-radius: 0.8cqh;
+  padding: 0.8cqh 1.2cqh;
+  font-size: 1.3cqh; color: #ddd;
+  max-height: 30cqh; overflow-y: auto;
 }
-.standings-mini .row {
-  display: flex;
-  justify-content: space-between;
-  padding: 3px 0;
-}
-.standings-mini .row.player {
-  color: #4ecdc4;
-  font-weight: 700;
-}
-.standings-mini .pos {
-  width: 28px;
-  display: inline-block;
-}
+.standings-mini .row { display: flex; justify-content: space-between; padding: 0.3cqh 0; }
+.standings-mini .row.player { color: #4ecdc4; font-weight: 700; }
+.standings-mini .pos { width: 2.8cqh; display: inline-block; }
 
-.finish-points {
-  color: #ffaa22;
-  font-size: 20px !important;
-  font-weight: 700;
-}
+.finish-points { color: #ffaa22; font-size: 2cqh !important; font-weight: 700; }
 
-#career-tier {
-  font-size: 40px;
-  letter-spacing: 2px;
-}
+#career-tier { font-size: 4cqh; letter-spacing: 0.2cqh; }
 
 /* Quick-race tier and track selection grids */
 .tier-grid,
 .track-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
-  gap: 14px;
-  padding: 0 20px;
-  max-width: 360px;
+  gap: 1.4cqh;
+  padding: 0 2cqh;
+  max-width: 36cqw;
 }
+
+.track-grid { max-height: 60cqh; overflow-y: auto; }
 
 .tier-card,
 .track-card {
   background: rgba(255,255,255,0.1);
   border: 2px solid rgba(255,255,255,0.2);
-  border-radius: 8px;
-  padding: 18px 14px;
-  text-align: center;
-  cursor: pointer;
-  font-size: 18px;
-  font-weight: 700;
-  letter-spacing: 1px;
+  border-radius: 0.8cqh;
+  padding: 1.8cqh 1.4cqh;
+  text-align: center; cursor: pointer;
+  font-size: 1.8cqh; font-weight: 700;
+  letter-spacing: 0.1cqh;
 }
 .tier-card:hover,
-.track-card:hover {
-  border-color: #4ecdc4;
-}
+.track-card:hover { border-color: #4ecdc4; }
+
+/* Headings used by several screens */
+h2 { font-size: 3cqh; font-weight: 800; letter-spacing: 0.15cqh; }

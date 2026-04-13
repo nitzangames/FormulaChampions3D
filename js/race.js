@@ -163,15 +163,35 @@ export class Race {
  */
 export function advanceWaypoint(car, currentIdx, centerLine) {
   const n = centerLine.length;
+  // Look ahead up to LOOKAHEAD waypoints. If the car is closer to any of
+  // them than to the current waypoint, advance to that one. Handles two
+  // failure modes of a strict next-only check:
+  //   1. Car skips past a waypoint in one tick (fast speeds, dense
+  //      waypoint spacing on curves).
+  //   2. Car follows the curve such that the immediate next waypoint is
+  //      never closer than the current (perpendicular-bisector case),
+  //      but a further waypoint is. Without lookahead the index sticks.
+  const LOOKAHEAD = 6;
   const here = centerLine[currentIdx];
-  const next = centerLine[(currentIdx + 1) % n];
   const dxH = car.physX - here.x;
   const dyH = car.physY - here.y;
-  const dxN = car.physX - next.x;
-  const dyN = car.physY - next.y;
-  const dH2 = dxH * dxH + dyH * dyH;
-  const dN2 = dxN * dxN + dyN * dyN;
-  return dN2 < dH2 ? (currentIdx + 1) % n : currentIdx;
+  let bestD2 = dxH * dxH + dyH * dyH;
+  let bestIdx = currentIdx;
+  for (let k = 1; k <= LOOKAHEAD; k++) {
+    const idx = (currentIdx + k) % n;
+    const pt = centerLine[idx];
+    const dx = car.physX - pt.x;
+    const dy = car.physY - pt.y;
+    const d2 = dx * dx + dy * dy;
+    if (d2 < bestD2) {
+      bestD2 = d2;
+      bestIdx = idx;
+    }
+  }
+  // Only advance one step at a time so the race's prev/curr lap-detection
+  // sees every waypoint crossing in order.
+  if (bestIdx !== currentIdx) return (currentIdx + 1) % n;
+  return currentIdx;
 }
 
 /**

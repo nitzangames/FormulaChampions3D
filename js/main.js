@@ -415,11 +415,6 @@ function startNextRace() {
   career = getCareer();
   if (!career) { showTitle(); return; }
 
-  if (finishShownTimeout) {
-    clearTimeout(finishShownTimeout);
-    finishShownTimeout = null;
-  }
-
   const seedIndex = career.trackOrder[career.currentRace];
   const seed = TRACK_SEEDS[seedIndex];
   currentSeed = seed;

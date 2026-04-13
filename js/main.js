@@ -27,7 +27,7 @@ import {
   seasonSummary, endSeason, resetCareer, isCareerComplete,
 } from './career.js';
 import { initRenderer, render as renderScene, getScene, getCamera, updateSunPosition } from './renderer3d.js';
-import { mpOpenLobby, mpGetRoom, mpIsHost, mpLocalUserId } from './multiplayer.js';
+import { mpOpenLobby, mpGetRoom, mpIsHost, mpLocalUserId, mpShowHostPicker, mpShowWaiting } from './multiplayer.js';
 import { initChaseCamera, updateChaseCamera, triggerShake, resetChaseCamera } from './camera3d.js';
 import { buildTrack as buildTrack3D, disposeTrack, setStartLights } from './track-builder.js';
 import { buildCarModel, updateCarModel } from './car-models.js';
@@ -103,6 +103,7 @@ function positionSuffix(pos) {
 const SCREEN_IDS = [
   'screen-title', 'screen-seasonsetup', 'screen-career',
   'screen-quicktier', 'screen-quicktrack',
+  'screen-mphostpick', 'screen-mpwaiting',
   'screen-countdown', 'screen-respawn', 'screen-finished',
   'screen-seasonend', 'screen-careercomplete', 'screen-pause',
 ];
@@ -118,7 +119,7 @@ function showScreen(name) {
     }
   }
   // Hide HUD on menu screens
-  if (['title', 'seasonsetup', 'career', 'quicktier', 'quicktrack', 'finished', 'seasonend', 'careercomplete', 'pause'].includes(name)) {
+  if (['title', 'seasonsetup', 'career', 'quicktier', 'quicktrack', 'mphostpick', 'mpwaiting', 'finished', 'seasonend', 'careercomplete', 'pause'].includes(name)) {
     hideHUD();
   }
 }
@@ -689,7 +690,19 @@ function setupButtons() {
     playClick(); hapticTap();
     mpOpenLobby({
       onStart: () => {
-        console.log('[mp] lobby started, host:', mpIsHost());
+        if (mpIsHost()) {
+          showScreen('mphostpick');
+          mpShowHostPicker({
+            onConfirm: ({ seed, tierIdx }) => {
+              console.log('[mp] host confirmed', seed, tierIdx);
+              // Task 4 will broadcast race-config + race-start here.
+            },
+            onLeave: () => showTitle(),
+          });
+        } else {
+          showScreen('mpwaiting');
+          mpShowWaiting({ onLeave: () => showTitle() });
+        }
       },
       onCancel: () => showTitle(),
     });

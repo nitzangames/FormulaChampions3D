@@ -36,6 +36,25 @@
       <button id="btn-quicktrack-back" class="btn-secondary">BACK</button>
     </div>
 
+    <!-- Multiplayer: Host picks track + tier -->
+    <div id="screen-mphostpick" class="screen hidden">
+      <h2>CHOOSE RACE</h2>
+      <p class="subtitle">Select a class, then a track. Everyone will race.</p>
+      <div class="mp-section-label">CLASS</div>
+      <div id="mp-tier-grid" class="tier-grid"></div>
+      <div class="mp-section-label">TRACK</div>
+      <div id="mp-track-grid" class="track-grid"></div>
+      <button id="btn-mphostpick-confirm" class="btn-primary">START RACE</button>
+      <button id="btn-mphostpick-leave" class="btn-secondary">LEAVE ROOM</button>
+    </div>
+
+    <!-- Multiplayer: Non-host waiting for host -->
+    <div id="screen-mpwaiting" class="screen hidden">
+      <h2 id="mpwaiting-title">WAITING</h2>
+      <p class="subtitle" id="mpwaiting-subtitle">Host is choosing the next race...</p>
+      <button id="btn-mpwaiting-leave" class="btn-secondary">LEAVE ROOM</button>
+    </div>
+
     <!-- Season Setup -->
     <div id="screen-seasonsetup" class="screen hidden">
       <h2>SEASON LENGTH</h2>

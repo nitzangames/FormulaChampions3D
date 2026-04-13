@@ -282,3 +282,25 @@ html, body {
 
 /* Headings used by several screens */
 h2 { font-size: 3cqh; font-weight: 800; letter-spacing: 0.15cqh; }
+
+/* Multiplayer host picker + waiting screens */
+.mp-section-label {
+  font-size: 1.3cqh;
+  color: #aaa;
+  letter-spacing: 0.3cqh;
+  margin-top: 1cqh;
+  margin-bottom: 0.4cqh;
+}
+#screen-mphostpick .tier-grid,
+#screen-mphostpick .track-grid {
+  max-width: 60cqw;
+}
+#screen-mphostpick .track-grid {
+  max-height: 24cqh;
+  overflow-y: auto;
+}
+.tier-card.selected,
+.track-card.selected {
+  border-color: #4ecdc4;
+  background: rgba(78, 205, 196, 0.2);
+}

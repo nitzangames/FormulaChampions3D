@@ -1,6 +1,8 @@
 // js/multiplayer.js
 // All multiplayer glue. Depends on window.PlaySDK being loaded.
 
+import { TIERS, TRACK_SEEDS } from './constants.js';
+
 let localUserId = null;
 
 function decodeTokenSub(token) {
@@ -67,4 +69,64 @@ export function mpOpenLobby({ onStart, onCancel } = {}) {
       onCancel: () => { onCancelCallback(); },
     });
   });
+}
+
+let selectedTierIdx = 0;
+let selectedSeedIdx = 0;
+
+export function mpShowHostPicker({ onConfirm, onLeave }) {
+  const tierGrid = document.getElementById('mp-tier-grid');
+  tierGrid.innerHTML = '';
+  selectedTierIdx = 0;
+  for (let i = 0; i < TIERS.length; i++) {
+    const card = document.createElement('div');
+    card.className = 'tier-card' + (i === selectedTierIdx ? ' selected' : '');
+    card.textContent = TIERS[i].name;
+    card.addEventListener('click', () => {
+      selectedTierIdx = i;
+      tierGrid.querySelectorAll('.tier-card').forEach((el, idx) => {
+        el.classList.toggle('selected', idx === i);
+      });
+    });
+    tierGrid.appendChild(card);
+  }
+
+  const trackGrid = document.getElementById('mp-track-grid');
+  trackGrid.innerHTML = '';
+  selectedSeedIdx = 0;
+  for (let i = 0; i < TRACK_SEEDS.length; i++) {
+    const card = document.createElement('div');
+    card.className = 'track-card' + (i === selectedSeedIdx ? ' selected' : '');
+    card.textContent = 'TRACK ' + (i + 1);
+    card.addEventListener('click', () => {
+      selectedSeedIdx = i;
+      trackGrid.querySelectorAll('.track-card').forEach((el, idx) => {
+        el.classList.toggle('selected', idx === i);
+      });
+    });
+    trackGrid.appendChild(card);
+  }
+
+  document.getElementById('btn-mphostpick-confirm').onclick = () => {
+    onConfirm({
+      seed: TRACK_SEEDS[selectedSeedIdx],
+      tierIdx: selectedTierIdx,
+    });
+  };
+  document.getElementById('btn-mphostpick-leave').onclick = () => {
+    const r = mpGetRoom();
+    if (r) r.leave();
+    onLeave();
+  };
+}
+
+export function mpShowWaiting({ title, subtitle, onLeave }) {
+  document.getElementById('mpwaiting-title').textContent = title || 'WAITING';
+  document.getElementById('mpwaiting-subtitle').textContent =
+    subtitle || 'Host is choosing the next race...';
+  document.getElementById('btn-mpwaiting-leave').onclick = () => {
+    const r = mpGetRoom();
+    if (r) r.leave();
+    onLeave();
+  };
 }

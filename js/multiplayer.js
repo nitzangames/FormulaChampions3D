@@ -166,12 +166,15 @@ export function mpHostStartRace({ seed, tierIdx }) {
 }
 
 // Per-remote snapshot buffer, keyed by userId.
-// Each entry: { t, x, y, angle, speed, lap, wp } sorted ascending by t.
+// Each entry: { t, x, y, angle, speed, lap, wp } where t is in LOCAL clock
+// (we translate from sender clock using a per-remote offset set on first pkt).
 const remoteSnapshots = new Map();
+const remoteClockOffset = new Map(); // userId -> localNow - msg.t at first pkt
 let lastLocalBroadcast = 0;
 
 export function mpClearSnapshots() {
   remoteSnapshots.clear();
+  remoteClockOffset.clear();
   lastLocalBroadcast = 0;
 }
 
@@ -191,15 +194,24 @@ export function mpBroadcastLocalCar(car, now) {
 }
 
 export function mpIngestCarState(fromUserId, msg) {
+  // Lock an offset on the first packet from each player so subsequent
+  // snapshots live in the local clock domain. Eliminates stutter from
+  // cross-client Date.now() skew.
+  if (!remoteClockOffset.has(fromUserId)) {
+    remoteClockOffset.set(fromUserId, Date.now() - msg.t);
+  }
+  const offset = remoteClockOffset.get(fromUserId);
+  const localT = msg.t + offset;
+
   if (!remoteSnapshots.has(fromUserId)) remoteSnapshots.set(fromUserId, []);
   const buf = remoteSnapshots.get(fromUserId);
   buf.push({
-    t: msg.t,
+    t: localT,
     x: msg.x, y: msg.y,
     angle: msg.angle, speed: msg.speed,
     lap: msg.lap, wp: msg.wp,
   });
-  const cutoff = msg.t - 1000;
+  const cutoff = localT - 1000;
   while (buf.length > 2 && buf[0].t < cutoff) buf.shift();
 }
 
@@ -253,13 +265,36 @@ function _checkAllFinished(graceExpired) {
   }
 }
 
+const MP_EXTRAPOLATE_MS = 150; // keep extrapolating forward this long past last snap
+
 export function mpInterpolateRemote(userId, now) {
   const buf = remoteSnapshots.get(userId);
   if (!buf || buf.length === 0) return null;
   const targetT = now - MP_BUFFER_MS;
   if (buf.length === 1) return buf[0];
   if (targetT <= buf[0].t) return buf[0];
-  if (targetT >= buf[buf.length - 1].t) return buf[buf.length - 1];
+
+  // Past the last snapshot: extrapolate forward using last known velocity
+  // for up to MP_EXTRAPOLATE_MS. Beyond that, clamp to last pose so a
+  // disconnected/stalled remote doesn't drift forever.
+  if (targetT >= buf[buf.length - 1].t) {
+    const last = buf[buf.length - 1];
+    const extrapMs = Math.min(targetT - last.t, MP_EXTRAPOLATE_MS);
+    if (extrapMs <= 0 || last.speed === 0) return last;
+    // Visual angle convention: forward = (sin A, -cos A).
+    const fx = Math.sin(last.angle);
+    const fy = -Math.cos(last.angle);
+    const dtSec = extrapMs / 1000;
+    return {
+      x: last.x + fx * last.speed * dtSec,
+      y: last.y + fy * last.speed * dtSec,
+      angle: last.angle,
+      speed: last.speed,
+      lap: last.lap,
+      wp: last.wp,
+    };
+  }
+
   let a = buf[0], b = buf[1];
   for (let i = 1; i < buf.length; i++) {
     if (buf[i].t >= targetT) { a = buf[i - 1]; b = buf[i]; break; }

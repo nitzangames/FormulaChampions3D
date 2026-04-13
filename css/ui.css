@@ -78,7 +78,14 @@ html, body {
   font-size: 5cqh;
   font-weight: 900;
   letter-spacing: 0.2cqh;
+  text-align: center;
   text-shadow: 0 0.2cqh 0.4cqh rgba(0,0,0,0.5);
+  animation: titleEnter 0.9s cubic-bezier(0.17, 0.89, 0.28, 1.25) both;
+}
+@keyframes titleEnter {
+  0%   { opacity: 0; transform: translateY(-6cqh) scale(0.7); letter-spacing: 2cqh; filter: blur(0.4cqh); }
+  60%  { opacity: 1; letter-spacing: 0.05cqh; filter: blur(0); }
+  100% { opacity: 1; transform: translateY(0) scale(1); letter-spacing: 0.2cqh; }
 }
 .btn-primary {
   background: #e63946; color: #fff; border: none;
@@ -173,11 +180,13 @@ html, body {
 #screen-finished .finish-detail { font-size: 2.4cqh; }
 #screen-finished .finish-points { font-size: 3cqh !important; }
 #screen-finished .standings-mini {
-  max-width: 55cqw;
+  width: 86cqw;
+  max-width: 86cqw;
   font-size: 2cqh;
-  padding: 1.2cqh 1.8cqh;
+  padding: 2cqh 4cqh;
 }
-#screen-finished .standings-mini .pos { width: 4cqh; }
+#screen-finished .standings-mini .row { padding: 0.6cqh 0; }
+#screen-finished .standings-mini .pos { width: 6cqh; }
 
 /* ── Toggle ───────────────────────────────────────────────────────────────── */
 

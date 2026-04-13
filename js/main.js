@@ -141,6 +141,15 @@ mpSetDisconnectHandler(() => {
 mpSetMessageHandler((fromUserId, msg) => {
   if (msg.type === 'race-config') {
     pendingMpConfig = { seed: msg.seed, tierIdx: msg.tierIdx };
+    const onResults = !document.getElementById('screen-mpresults').classList.contains('hidden');
+    if (onResults) {
+      showScreen('mpwaiting');
+      mpShowWaiting({
+        title: 'NEXT RACE LOADING',
+        subtitle: 'Host picked the next track...',
+        onLeave: () => { const r = mpGetRoom(); if (r) r.leave(); showTitle(); },
+      });
+    }
     return;
   }
   if (msg.type === 'race-start' && pendingMpConfig) {
@@ -927,6 +936,28 @@ function setupButtons() {
     resetCareer();
     career = null;
     showSeasonSetup();
+  });
+
+  // MP results: Next Race (host only)
+  document.getElementById('btn-mpresults-next').addEventListener('click', () => {
+    playClick(); hapticTap();
+    if (!mpIsHost()) return;
+    showScreen('mphostpick');
+    mpShowHostPicker({
+      onConfirm: ({ seed, tierIdx }) => {
+        const { startAt } = mpHostStartRace({ seed, tierIdx });
+        startMultiplayerRace({ seed, tierIdx, startAt });
+      },
+      onLeave: () => showTitle(),
+    });
+  });
+
+  // MP results: Leave Room
+  document.getElementById('btn-mpresults-leave').addEventListener('click', () => {
+    playClick(); hapticTap();
+    const r = mpGetRoom();
+    if (r) r.leave();
+    showTitle();
   });
 
   // SFX toggle

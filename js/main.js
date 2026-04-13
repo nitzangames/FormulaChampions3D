@@ -27,6 +27,7 @@ import {
   seasonSummary, endSeason, resetCareer, isCareerComplete,
 } from './career.js';
 import { initRenderer, render as renderScene, getScene, getCamera, updateSunPosition } from './renderer3d.js';
+import { mpOpenLobby, mpGetRoom, mpIsHost, mpLocalUserId } from './multiplayer.js';
 import { initChaseCamera, updateChaseCamera, triggerShake, resetChaseCamera } from './camera3d.js';
 import { buildTrack as buildTrack3D, disposeTrack, setStartLights } from './track-builder.js';
 import { buildCarModel, updateCarModel } from './car-models.js';
@@ -681,6 +682,17 @@ function setupButtons() {
   document.getElementById('btn-quick-race').addEventListener('click', () => {
     playClick(); hapticTap();
     showQuickTierSelect();
+  });
+
+  // Title: Multiplayer
+  document.getElementById('btn-multiplayer').addEventListener('click', () => {
+    playClick(); hapticTap();
+    mpOpenLobby({
+      onStart: () => {
+        console.log('[mp] lobby started, host:', mpIsHost());
+      },
+      onCancel: () => showTitle(),
+    });
   });
 
   // Quick tier: back

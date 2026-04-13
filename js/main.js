@@ -670,6 +670,7 @@ function fixedUpdate() {
     gameState.tickRace();
 
     const playerSteering = input.steering;
+    cars[0].lastSteering = playerSteering;
     cars[0].update(playerSteering);
 
     const playerProgress = computeProgress(
@@ -687,6 +688,7 @@ function fixedUpdate() {
         centerLine, cl, aiCar.lapsCompleted
       );
       const steering = ai.tick(playerProgress, aiProgress);
+      aiCar.lastSteering = steering;
       aiCar.update(steering);
     }
 
@@ -908,11 +910,11 @@ function renderFrame(dt) {
 
   for (let i = 0; i < cars.length; i++) {
     const car = cars[i];
-    const steer = (i === 0) ? input.steering : 0;
+    const steer = car.lastSteering || 0;
     if (Math.abs(steer) > 0.5 && car.speed > MAX_SPEED * 0.3) {
       spawnSmoke(car.x, car.y, car.angle);
     }
-    if (i === 0 && car.speed > 50) {
+    if (car.speed > 50) {
       addSkidmark(car.x, car.y, car.angle, steer);
     }
   }

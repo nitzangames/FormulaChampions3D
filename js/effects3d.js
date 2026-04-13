@@ -41,15 +41,15 @@ export function initEffects(scene, camera) {
     const mat = new THREE.SpriteMaterial({
       color: 0xcccccc,
       transparent: true,
-      opacity: 0.6,
+      opacity: 0.25,
       depthWrite: false,
     });
     const sprite = new THREE.Sprite(mat);
     sprite.visible = false;
-    sprite.scale.set(0.2, 0.2, 0.2);
+    sprite.scale.set(0.15, 0.15, 0.15);
     smokeGroup.add(sprite);
     smokeSprites.push(sprite);
-    smokeState.push({ vx: 0, vy: 0, vz: 0, life: 0, maxLife: 0.5 });
+    smokeState.push({ vx: 0, vy: 0, vz: 0, life: 0, maxLife: 0.4 });
   }
   scene.add(smokeGroup);
 
@@ -104,8 +104,8 @@ export function updateEffects(dt) {
 
     // Fade & scale over lifetime
     const t = 1 - s.life / s.maxLife; // 0 -> 1
-    sprite.material.opacity = 0.6 * (1 - t);
-    const scl = 0.2 + (0.8 - 0.2) * t;
+    sprite.material.opacity = 0.25 * (1 - t);
+    const scl = 0.15 + (0.5 - 0.15) * t;
     sprite.scale.set(scl, scl, scl);
   }
 

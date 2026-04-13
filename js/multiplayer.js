@@ -130,3 +130,37 @@ export function mpShowWaiting({ title, subtitle, onLeave }) {
     onLeave();
   };
 }
+
+let gameMessageHandler = null;
+let onDisconnectCallback = null;
+
+export function mpInitMessaging() {
+  if (!window.PlaySDK || !window.PlaySDK.multiplayer) return;
+  window.PlaySDK.multiplayer.on('game', (fromUserId, payload) => {
+    if (!payload || !payload.type) return;
+    if (gameMessageHandler) gameMessageHandler(fromUserId, payload);
+  });
+  window.PlaySDK.multiplayer.on('disconnected', () => {
+    if (onDisconnectCallback) onDisconnectCallback();
+  });
+  window.PlaySDK.multiplayer.on('kicked', () => {
+    if (onDisconnectCallback) onDisconnectCallback();
+  });
+}
+
+export function mpSetMessageHandler(fn) { gameMessageHandler = fn; }
+export function mpSetDisconnectHandler(fn) { onDisconnectCallback = fn; }
+
+export function mpBroadcast(payload) {
+  const r = mpGetRoom();
+  if (r) r.send(payload);
+}
+
+export function mpHostStartRace({ seed, tierIdx }) {
+  const startAt = Date.now() + 1500; // 1.5s lead for propagation
+  mpBroadcast({ type: 'race-config', seed, tierIdx });
+  setTimeout(() => {
+    mpBroadcast({ type: 'race-start', startAt, hostNow: Date.now() });
+  }, 200);
+  return { seed, tierIdx, startAt };
+}

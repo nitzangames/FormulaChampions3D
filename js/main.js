@@ -27,7 +27,7 @@ import {
   seasonSummary, endSeason, resetCareer, isCareerComplete,
 } from './career.js';
 import { initRenderer, render as renderScene, getScene, getCamera, updateSunPosition } from './renderer3d.js';
-import { mpOpenLobby, mpGetRoom, mpIsHost, mpLocalUserId, mpShowHostPicker, mpShowWaiting } from './multiplayer.js';
+import { mpOpenLobby, mpGetRoom, mpIsHost, mpLocalUserId, mpShowHostPicker, mpShowWaiting, mpInitMessaging, mpSetMessageHandler, mpSetDisconnectHandler, mpHostStartRace, mpBroadcast } from './multiplayer.js';
 import { initChaseCamera, updateChaseCamera, triggerShake, resetChaseCamera } from './camera3d.js';
 import { buildTrack as buildTrack3D, disposeTrack, setStartLights } from './track-builder.js';
 import { buildCarModel, updateCarModel } from './car-models.js';
@@ -62,6 +62,7 @@ let finishOrder = [];
 let playerFinished = false;
 let playerAutoController = null; // AI that takes over cars[0] after player finishes
 let raceRecorded = false;        // has recordRaceResult been called for this race
+let pendingMpConfig = null;      // race-config payload received before race-start
 
 // Career-driven
 let career = null;              // cached career state
@@ -132,6 +133,27 @@ function hideHUD() { document.getElementById('hud').classList.add('hidden'); }
 initRenderer(canvas);
 initAudio();
 initEffects(getScene(), getCamera());
+mpInitMessaging();
+mpSetDisconnectHandler(() => {
+  gameState.state = 'postrace';
+  showTitle();
+});
+mpSetMessageHandler((fromUserId, msg) => {
+  if (msg.type === 'race-config') {
+    pendingMpConfig = { seed: msg.seed, tierIdx: msg.tierIdx };
+    return;
+  }
+  if (msg.type === 'race-start' && pendingMpConfig) {
+    const cfg = pendingMpConfig;
+    pendingMpConfig = null;
+    startMultiplayerRace({
+      seed: cfg.seed,
+      tierIdx: cfg.tierIdx,
+      startAt: msg.startAt,
+    });
+    return;
+  }
+});
 
 // ── Track setup ─────────────────────────────────────────────────────────────
 
@@ -473,6 +495,33 @@ function startQuickRace(tierIdx, seed) {
   accumulator = 0;
 }
 
+// ── Multiplayer Race ────────────────────────────────────────────────────────
+
+function startMultiplayerRace({ seed, tierIdx, startAt }) {
+  raceMode = 'multiplayer';
+  currentSeed = seed;
+  quickTierIndex = tierIdx;  // reuse tier-lookup plumbing
+
+  finishOrder = [];
+  playerFinished = false;
+  playerAutoController = null;
+  raceRecorded = false;
+
+  initTrack(seed);
+  spawnCars();
+  setStartLights(0);
+
+  const delay = Math.max(0, startAt - Date.now());
+  setTimeout(() => {
+    gameState.startCountdown();
+    prevCountdown = COUNTDOWN_SECONDS;
+    showScreen('countdown');
+    showHUD();
+    lastTime = 0;
+    accumulator = 0;
+  }, delay);
+}
+
 function showQuickTierSelect() {
   const grid = document.getElementById('tier-grid');
   if (grid) {
@@ -694,8 +743,8 @@ function setupButtons() {
           showScreen('mphostpick');
           mpShowHostPicker({
             onConfirm: ({ seed, tierIdx }) => {
-              console.log('[mp] host confirmed', seed, tierIdx);
-              // Task 4 will broadcast race-config + race-start here.
+              const { startAt } = mpHostStartRace({ seed, tierIdx });
+              startMultiplayerRace({ seed, tierIdx, startAt });
             },
             onLeave: () => showTitle(),
           });

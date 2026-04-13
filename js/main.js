@@ -351,9 +351,12 @@ function applyRemoteSnapshots() {
     const snap = mpInterpolateRemote(uid, now);
     if (!snap) continue;
     car.body.setPosition(snap.x, snap.y);
-    car.body.angle = snap.angle;
-    car.body.previousAngle = snap.angle;
-    car.body.renderAngle = snap.angle;
+    // snap.angle is in VISUAL convention (car.angle getter adds π/2); the
+    // body stores capsule convention. Subtract π/2 to convert back.
+    const capsuleAngle = snap.angle - Math.PI / 2;
+    car.body.angle = capsuleAngle;
+    car.body.previousAngle = capsuleAngle;
+    car.body.renderAngle = capsuleAngle;
     car.speed = snap.speed;
     car.lapsCompleted = snap.lap;
     car.currentWaypointIdx = snap.wp;

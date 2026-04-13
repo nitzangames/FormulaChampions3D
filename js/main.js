@@ -27,7 +27,7 @@ import {
   seasonSummary, endSeason, resetCareer, isCareerComplete,
 } from './career.js';
 import { initRenderer, render as renderScene, getScene, getCamera, updateSunPosition } from './renderer3d.js';
-import { mpOpenLobby, mpGetRoom, mpIsHost, mpLocalUserId, mpShowHostPicker, mpShowWaiting, mpInitMessaging, mpSetMessageHandler, mpSetDisconnectHandler, mpHostStartRace, mpBroadcast } from './multiplayer.js';
+import { mpOpenLobby, mpGetRoom, mpIsHost, mpLocalUserId, mpShowHostPicker, mpShowWaiting, mpInitMessaging, mpSetMessageHandler, mpSetDisconnectHandler, mpHostStartRace, mpBroadcast, mpClearSnapshots, mpBroadcastLocalCar, mpIngestCarState, mpInterpolateRemote } from './multiplayer.js';
 import { initChaseCamera, updateChaseCamera, triggerShake, resetChaseCamera } from './camera3d.js';
 import { buildTrack as buildTrack3D, disposeTrack, setStartLights } from './track-builder.js';
 import { buildCarModel, updateCarModel } from './car-models.js';
@@ -151,6 +151,10 @@ mpSetMessageHandler((fromUserId, msg) => {
       tierIdx: cfg.tierIdx,
       startAt: msg.startAt,
     });
+    return;
+  }
+  if (msg.type === 'car-state') {
+    mpIngestCarState(fromUserId, msg);
     return;
   }
 });
@@ -321,6 +325,26 @@ function spawnCars() {
   resetChaseCamera();
   initChaseCamera(getCamera());
   respawnTimer = 0;
+}
+
+function applyRemoteSnapshots() {
+  if (raceMode !== 'multiplayer') return;
+  const now = Date.now();
+  for (let i = 1; i < cars.length; i++) {
+    const car = cars[i];
+    if (!car.isKinematic) continue;
+    const uid = car.userData && car.userData.userId;
+    if (!uid) continue;
+    const snap = mpInterpolateRemote(uid, now);
+    if (!snap) continue;
+    car.body.setPosition(snap.x, snap.y);
+    car.body.angle = snap.angle;
+    car.body.previousAngle = snap.angle;
+    car.body.renderAngle = snap.angle;
+    car.speed = snap.speed;
+    car.lapsCompleted = snap.lap;
+    car.currentWaypointIdx = snap.wp;
+  }
 }
 
 // ── Respawn ─────────────────────────────────────────────────────────────────
@@ -520,6 +544,7 @@ function startQuickRace(tierIdx, seed) {
 // ── Multiplayer Race ────────────────────────────────────────────────────────
 
 function startMultiplayerRace({ seed, tierIdx, startAt }) {
+  mpClearSnapshots();
   raceMode = 'multiplayer';
   currentSeed = seed;
   quickTierIndex = tierIdx;  // reuse tier-lookup plumbing
@@ -1040,6 +1065,10 @@ function fixedUpdate() {
       if (playerFinished) showRaceResults(finishOrder);
     }
 
+    if (raceMode === 'multiplayer' && cars[0]) {
+      mpBroadcastLocalCar(cars[0], Date.now());
+    }
+
     if (respawnTimer > 0) {
       respawnTimer -= FIXED_DT;
       if (respawnTimer <= 0) {
@@ -1243,6 +1272,8 @@ function drawSteeringWheel(ctx, screenX, screenY, steering, speed) {
 // ── Render frame ────────────────────────────────────────────────────────────
 
 function renderFrame(dt) {
+  applyRemoteSnapshots();
+
   for (let i = 0; i < cars.length; i++) {
     const car = cars[i];
     const model = carModels[i];

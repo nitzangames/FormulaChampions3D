@@ -814,11 +814,8 @@ function drawMinimap() {
 
 // ── Steering Wheel (2D overlay) ─────────────────────────────────────────────
 
+// Variant E "winged F1" wheel — see docs in HotLap/docs/steering-wheel-guide.md
 function drawSteeringWheel(ctx, screenX, screenY, steering, speed) {
-  const R = 120;
-  const rimOuter = R;
-  const rimInner = R * 0.76;
-  const hubRadius = R * 0.28;
   const rotation = steering * Math.PI * 0.75;
 
   ctx.save();
@@ -826,76 +823,130 @@ function drawSteeringWheel(ctx, screenX, screenY, steering, speed) {
   ctx.translate(screenX, screenY);
   ctx.rotate(rotation);
 
-  // Matte black suede donut rim
-  ctx.fillStyle = '#141414';
+  const bw = 210, bh = 140;
+
+  // ── Red paddle shifters peeking out behind the top of each handle ──
+  ctx.fillStyle = '#c1272d';
   ctx.beginPath();
-  ctx.arc(0, 0, rimOuter, 0, Math.PI * 2);
-  ctx.arc(0, 0, rimInner, 0, Math.PI * 2, true);
-  ctx.fill('evenodd');
+  ctx.moveTo(-128, -38);
+  ctx.quadraticCurveTo(-110, -62, -78, -66);
+  ctx.lineTo(-65, -54);
+  ctx.quadraticCurveTo(-102, -48, -120, -28);
+  ctx.closePath();
+  ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(128, -38);
+  ctx.quadraticCurveTo(110, -62, 78, -66);
+  ctx.lineTo(65, -54);
+  ctx.quadraticCurveTo(102, -48, 120, -28);
+  ctx.closePath();
+  ctx.fill();
 
-  // Suede texture
-  ctx.fillStyle = '#1f1f1f';
-  for (let i = 0; i < 100; i++) {
-    const a = (i * 0.4389) % (Math.PI * 2);
-    const r = rimInner + 2 + ((i * 1.93) % (rimOuter - rimInner - 4));
-    ctx.beginPath();
-    ctx.arc(Math.cos(a) * r, Math.sin(a) * r, 0.9, 0, Math.PI * 2);
-    ctx.fill();
-  }
+  // ── Central carbon body ──
+  ctx.fillStyle = '#0d0d0d';
+  ctx.beginPath();
+  ctx.roundRect(-bw / 2, -bh / 2, bw, bh, 18);
+  ctx.fill();
 
-  // 12 o'clock marker
-  ctx.fillStyle = '#ffd23a';
-  ctx.fillRect(-5, -rimOuter - 1, 10, (rimOuter - rimInner) + 3);
-
-  // 3 spokes
-  const spokeAngles = [Math.PI / 2, 0, Math.PI];
-  const spokeHalfW = R * 0.06;
-  const spokeInner = hubRadius;
-  const spokeOuter = rimInner - 2;
-
-  for (const a of spokeAngles) {
-    ctx.save();
-    ctx.rotate(a);
-    ctx.fillStyle = '#2a2a2e';
-    ctx.beginPath();
-    ctx.moveTo(spokeInner, -spokeHalfW);
-    ctx.lineTo(spokeOuter - spokeHalfW, -spokeHalfW);
-    ctx.arc(spokeOuter - spokeHalfW, 0, spokeHalfW, -Math.PI / 2, Math.PI / 2);
-    ctx.lineTo(spokeInner, spokeHalfW);
-    ctx.arc(spokeInner, 0, spokeHalfW, Math.PI / 2, -Math.PI / 2);
-    ctx.closePath();
-    ctx.fill();
-
-    ctx.fillStyle = '#3a3a3e';
-    ctx.fillRect(spokeInner + 4, -spokeHalfW + 1, spokeOuter - spokeInner - 8, 1.5);
-
-    ctx.fillStyle = '#0a0a0a';
-    for (let i = 0; i < 3; i++) {
-      const t = 0.28 + i * 0.22;
-      const x = spokeInner + (spokeOuter - spokeInner) * t;
-      ctx.beginPath();
-      ctx.arc(x, 0, spokeHalfW * 0.48, 0, Math.PI * 2);
-      ctx.fill();
-    }
-    ctx.restore();
-  }
-
-  ctx.fillStyle = '#1a1a1a';
-  ctx.beginPath(); ctx.arc(0, 0, hubRadius, 0, Math.PI * 2); ctx.fill();
-  ctx.strokeStyle = '#a8a8ac';
-  ctx.lineWidth = 1.8;
-  ctx.beginPath(); ctx.arc(0, 0, hubRadius, 0, Math.PI * 2); ctx.stroke();
-
-  const ratio = 1 - Math.abs(steering || 0) * (1 - TURN_SPEED_PENALTY);
-  const pct = Math.round(ratio * 100);
+  // Carbon weave texture
   ctx.save();
-  ctx.rotate(-rotation);
-  ctx.fillStyle = '#ffd23a';
-  ctx.font = 'bold 27px sans-serif';
+  ctx.beginPath();
+  ctx.roundRect(-bw / 2, -bh / 2, bw, bh, 18);
+  ctx.clip();
+  ctx.strokeStyle = 'rgba(255,255,255,0.04)';
+  ctx.lineWidth = 1;
+  for (let i = -bw; i < bw; i += 6) {
+    ctx.beginPath();
+    ctx.moveTo(i, -bh / 2);
+    ctx.lineTo(i + bh, bh / 2);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(i, bh / 2);
+    ctx.lineTo(i + bh, -bh / 2);
+    ctx.stroke();
+  }
+  ctx.restore();
+
+  // ── Curved wing handles ──
+  ctx.lineCap = 'round';
+  ctx.strokeStyle = '#0a0a0a';
+  ctx.lineWidth = 32;
+  ctx.beginPath();
+  ctx.moveTo(-100, -38);
+  ctx.quadraticCurveTo(-150, -38, -143, 18);
+  ctx.quadraticCurveTo(-133, 62, -97, 56);
+  ctx.stroke();
+  ctx.strokeStyle = 'rgba(255,255,255,0.06)';
+  ctx.lineWidth = 26;
+  ctx.beginPath();
+  ctx.moveTo(-100, -38);
+  ctx.quadraticCurveTo(-150, -38, -143, 18);
+  ctx.quadraticCurveTo(-133, 62, -97, 56);
+  ctx.stroke();
+  ctx.strokeStyle = '#0a0a0a';
+  ctx.lineWidth = 32;
+  ctx.beginPath();
+  ctx.moveTo(100, -38);
+  ctx.quadraticCurveTo(150, -38, 143, 18);
+  ctx.quadraticCurveTo(133, 62, 97, 56);
+  ctx.stroke();
+  ctx.strokeStyle = 'rgba(255,255,255,0.06)';
+  ctx.lineWidth = 26;
+  ctx.beginPath();
+  ctx.moveTo(100, -38);
+  ctx.quadraticCurveTo(150, -38, 143, 18);
+  ctx.quadraticCurveTo(133, 62, 97, 56);
+  ctx.stroke();
+
+  // ── Rev LED strip ──
+  const ledY = -bh * 0.36;
+  const turnFactor = 1 - Math.abs(steering);
+  const litCount = Math.round(turnFactor * 11);
+  const ledPalette = ['#ff2020', '#ff6020', '#ffb030', '#ffe040', '#50ff40', '#30d0f0'];
+  for (let i = -5; i <= 5; i++) {
+    const idx = Math.abs(i);
+    const isLit = idx < Math.ceil(litCount / 2);
+    if (isLit) {
+      ctx.fillStyle = ledPalette[idx];
+    } else {
+      ctx.fillStyle = '#1a1a1a';
+    }
+    ctx.beginPath();
+    ctx.arc(i * 13, ledY, 3.2, 0, Math.PI * 2);
+    ctx.fill();
+    if (isLit) {
+      ctx.globalAlpha = 0.25 * 0.9;
+      ctx.beginPath();
+      ctx.arc(i * 13, ledY, 6, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalAlpha = 0.9;
+    }
+  }
+
+  // ── Central LCD ──
+  const sw = 126, sh = 58;
+  ctx.fillStyle = '#000';
+  ctx.beginPath();
+  ctx.roundRect(-sw / 2, -sh / 2 + 4, sw, sh, 5);
+  ctx.fill();
+  ctx.strokeStyle = '#444';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+
+  // Speed on screen
+  ctx.fillStyle = '#0af';
+  ctx.font = 'bold 30px monospace';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillText(pct + '%', 0, 0);
-  ctx.restore();
+  const kph = Math.round(speed || 0);
+  ctx.fillText(String(kph), 0, 0);
+  ctx.fillStyle = '#888';
+  ctx.font = 'bold 12px monospace';
+  ctx.fillText('km/h', 0, 22);
+
+  // ── Top marker (red notch) for orientation ──
+  ctx.fillStyle = '#e63030';
+  ctx.fillRect(-3, -bh / 2 - 4, 7, 7);
 
   ctx.restore();
 }
@@ -942,7 +993,9 @@ function renderFrame(dt) {
   const showWheel = input.dragging && (st === 'countdown' || st === 'racing' || st === 'finishing');
   if (showWheel) {
     const yOffset = input.pointerType === 'mouse' ? 0 : -220;
-    drawSteeringWheel(overlayCtx, input.dragScreenX, input.dragScreenY + yOffset, input.steering, cars[0]?.speed || 0);
+    // Pass km/h to the wheel's LCD (speed in px/s × 0.36)
+    const kmh = Math.abs(cars[0]?.speed || 0) * 0.36;
+    drawSteeringWheel(overlayCtx, input.dragScreenX, input.dragScreenY + yOffset, input.steering, kmh);
   }
 }
 

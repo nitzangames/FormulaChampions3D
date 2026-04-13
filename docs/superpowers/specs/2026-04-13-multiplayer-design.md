@@ -28,7 +28,13 @@ with them (locally-authoritative collisions, no server arbitration).
 7. On local finish, client sends `race-finish { finishTime, bestLap }`. Host
    (or any client) aggregates times and shows a shared `#screen-mpresults`
    once everyone has finished or after a 30s grace timeout.
-8. RESULTS → CONTINUE → back to main menu.
+8. Results screen shows final standings + two buttons:
+   - **Host-only: NEXT RACE** → returns host to the track+class picker
+     (`#screen-mphostpick`). Same room, same players. Host picks, broadcasts
+     new `race-config` + `race-start`, everyone races again.
+   - **All players: LEAVE** → leaves the room, returns to title.
+   Non-host sees "Waiting for host to pick next track..." instead of
+   NEXT RACE.
 
 ## Network protocol
 
@@ -100,6 +106,20 @@ update, race finish, dispose).
   end-to-end test — or add a dev-mode token bypass, out of scope for v1.
 - Local smoke test: MULTIPLAYER button opens the SDK lobby overlay without
   errors; cancel returns to title cleanly.
+
+## Post-race loop
+
+- `mpresults` screen keeps the room connection alive. Nothing is disposed.
+- When host clicks NEXT RACE: broadcasts nothing, navigates locally to
+  `#screen-mphostpick`. Non-host clients receive *nothing new* yet — they
+  stay on `mpresults` but the copy swaps to "Waiting for host to pick next
+  track...". This is purely a client-side UI state based on receiving no
+  `race-config` yet after the previous race ended.
+- Host's next `race-config` + `race-start` restarts the race flow for
+  everyone identically to the first race.
+- Players who drop during results → they leave the room, their slot frees
+  up. When the next race starts, they simply aren't in the `room.players`
+  list so they don't race.
 
 ## Known v1 limitations
 

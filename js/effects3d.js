@@ -18,7 +18,7 @@ const sparkSprites = [];
 const sparkState = [];
 
 // Skidmarks
-const MAX_SKIDMARKS = 200;
+const MAX_SKIDMARKS = 2000;
 const skidmarks = []; // { mesh }
 
 // Groups
@@ -217,17 +217,21 @@ export function addSkidmark(x2d, y2d, angle, steering) {
 
     const geo = new THREE.PlaneGeometry(0.06, 0.3);
     const mat = new THREE.MeshBasicMaterial({
-      color: 0x222222,
+      color: 0x111111,
       transparent: true,
-      opacity: 0.4,
+      opacity: 0.5,
       depthWrite: false,
+      polygonOffset: true,
+      polygonOffsetFactor: -1,
+      polygonOffsetUnits: -1,
     });
     const mesh = new THREE.Mesh(geo, mat);
 
-    // Flat on road
+    // Flat on road — raised above center-line dashes (y=0.02) to avoid
+    // z-fighting. polygonOffset biases toward camera to keep it clean.
     mesh.rotation.x = -Math.PI / 2;
     mesh.rotation.z = -angle;
-    mesh.position.set(wx, 0.015, wz);
+    mesh.position.set(wx, 0.025, wz);
 
     skidGroup.add(mesh);
     skidmarks.push({ mesh, geo, mat });

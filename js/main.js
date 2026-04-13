@@ -266,11 +266,30 @@ function spawnCars() {
     : (career ? career.tierIndex : 0);
   const speedMult = TIERS[tierIdx].speedMult;
 
-  for (let i = 0; i < NUM_CARS; i++) {
-    const car = new Car(world);
+  // Decide which cars to spawn based on race mode.
+  const carSpawnSpecs = [];
+  if (raceMode === 'multiplayer') {
+    const room = mpGetRoom();
+    const players = room ? room.players : [];
+    const myId = mpLocalUserId();
+    // Local player always slot 0 (P8 spawn position) — keeps existing input path.
+    carSpawnSpecs.push({ slotIdx: 0, isLocal: true, userId: myId });
+    let slot = 1;
+    for (const p of players) {
+      if (p.userId === myId) continue;
+      carSpawnSpecs.push({ slotIdx: slot++, isLocal: false, userId: p.userId });
+    }
+  } else {
+    for (let i = 0; i < NUM_CARS; i++) {
+      carSpawnSpecs.push({ slotIdx: i, isLocal: (i === 0), userId: null });
+    }
+  }
+
+  for (const spec of carSpawnSpecs) {
+    const i = spec.slotIdx;
+    const car = new Car(world, { isKinematic: !spec.isLocal && raceMode === 'multiplayer' });
     const pos = getSpawnPosForCar(i);
     car.spawn(pos.x, pos.y, spawnAngle);
-
     car.currentWaypointIdx = pos.waypointIdx;
     car.lapsCompleted = 0;
     car.halfwayReached = false;
@@ -278,7 +297,8 @@ function spawnCars() {
     car.bestLap = null;
     car.currentLapStartMs = 0;
     car.finished = false;
-    car.maxSpeedMult = speedMult; // tier-specific speed
+    car.maxSpeedMult = speedMult;
+    car.userData = { userId: spec.userId || null };
 
     cars.push(car);
 
@@ -288,14 +308,16 @@ function spawnCars() {
     carModels.push(model);
   }
 
-  for (let i = 0; i < AI_SKILLS.length; i++) {
-    const ai = new AIController(cars[i + 1], walls, AI_SKILLS[i], cars);
-    aiControllers.push(ai);
+  if (raceMode !== 'multiplayer') {
+    for (let i = 0; i < AI_SKILLS.length; i++) {
+      const ai = new AIController(cars[i + 1], walls, AI_SKILLS[i], cars);
+      aiControllers.push(ai);
+    }
   }
 
   race = new Race(cars, centerLine, finishIdx);
 
-  prevLaps = new Array(NUM_CARS).fill(0);
+  prevLaps = new Array(cars.length).fill(0);
   resetChaseCamera();
   initChaseCamera(getCamera());
   respawnTimer = 0;

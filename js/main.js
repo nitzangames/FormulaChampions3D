@@ -28,11 +28,10 @@ import {
 } from './career.js';
 import { initRenderer, render as renderScene, getScene, getCamera, updateSunPosition } from './renderer3d.js';
 import { initChaseCamera, updateChaseCamera, triggerShake, resetChaseCamera } from './camera3d.js';
-import { buildTrack as buildTrack3D, disposeTrack } from './track-builder.js';
+import { buildTrack as buildTrack3D, disposeTrack, setStartLights } from './track-builder.js';
 import { buildCarModel, updateCarModel } from './car-models.js';
 import { initEffects, updateEffects, spawnSmoke, spawnSparks, addSkidmark, clearEffects } from './effects3d.js';
 import { buildScenery, disposeScenery } from './scenery.js';
-import { initPhysicsDebug, updatePhysicsDebug, disposePhysicsDebug } from './debug3d.js';
 
 // ── State ───────────────────────────────────────────────────────────────────
 
@@ -258,9 +257,6 @@ function spawnCars() {
 
   race = new Race(cars, centerLine, finishIdx);
 
-  // Physics debug outlines
-  initPhysicsDebug(getScene(), NUM_CARS);
-
   prevLaps = new Array(NUM_CARS).fill(0);
   resetChaseCamera();
   initChaseCamera(getCamera());
@@ -424,6 +420,7 @@ function startNextRace() {
 
   initTrack(seed);
   spawnCars();
+  setStartLights(0); // lights out until countdown begins
   gameState.startCountdown();
   prevCountdown = COUNTDOWN_SECONDS;
 
@@ -658,8 +655,15 @@ function fixedUpdate() {
     if (gameState.countdownNumber < prevNum && gameState.countdownNumber > 0) {
       playCountdownBeep();
     }
+    // Update start lights: 3 = 2 lights, 2 = 4 lights, 1 = 5 lights
+    const cd = gameState.countdownNumber;
+    if (cd >= 3)      setStartLights(2);
+    else if (cd >= 2) setStartLights(4);
+    else if (cd >= 1) setStartLights(5);
+
     if (done) {
       playGoBeep();
+      setStartLights(0); // lights out → GO
       showScreen(null);
       showHUD();
     }
@@ -919,7 +923,6 @@ function renderFrame(dt) {
     }
   }
   updateEffects(dt);
-  updatePhysicsDebug(cars);
 
   if (cars[0]) {
     updateChaseCamera(cars[0].x, cars[0].y, cars[0].angle, cars[0].speed);

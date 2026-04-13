@@ -38,9 +38,32 @@ export function buildTrack(scene, centerLine, walls, track) {
   buildCenterDashes(center);
   buildWallBlocks(left, right);
   buildStartFinishLine(center);
+  buildStartArch(center);
 
   scene.add(trackGroup);
   return trackGroup;
+}
+
+/**
+ * Toggle the start lights: array of 5 red lamps above the arch.
+ * `lit` = how many are on (0-5). Unlit lamps render dark.
+ * `green` = show green GO lights (lit=5 green) instead of red.
+ */
+let startLights = [];
+export function setStartLights(lit, green = false) {
+  for (let i = 0; i < startLights.length; i++) {
+    const onMat = startLights[i].onMat;
+    const offMat = startLights[i].offMat;
+    const greenMat = startLights[i].greenMat;
+    const mesh = startLights[i].mesh;
+    if (green) {
+      mesh.material = greenMat;
+    } else if (i < lit) {
+      mesh.material = onMat;
+    } else {
+      mesh.material = offMat;
+    }
+  }
 }
 
 // ── Road Surface ──────────────────────────────────────────────────────────────
@@ -241,5 +264,124 @@ function buildStartFinishLine(center) {
       mesh.rotation.z = angle;
       trackGroup.add(mesh);
     }
+  }
+}
+
+// ── Start-Finish Arch ────────────────────────────────────────────────────────
+// A gantry arch over the finish line with 5 F1-style start lights on it.
+
+function buildStartArch(center) {
+  const idx = 3;
+  if (idx + 1 >= center.length) return;
+
+  const p = center[idx];
+  const next = center[idx + 1];
+  const dx = next.x - p.x;
+  const dz = next.z - p.z;
+  const len = Math.sqrt(dx * dx + dz * dz) || 1;
+  const dirX = dx / len;
+  const dirZ = dz / len;
+  const perpX = -dirZ;
+  const perpZ = dirX;
+  const angle = Math.atan2(dx, dz);
+
+  // Arch dimensions (world units)
+  const halfWidth = 256 * PX_TO_WORLD;   // matches road half-width
+  const archHalfW = halfWidth + 0.3;     // pillars stand just outside the barriers
+  const pillarH = 3.5;
+  const pillarW = 0.25;
+  const beamH = 0.5;
+  const beamD = 0.4;
+
+  const pillarMat = new THREE.MeshLambertMaterial({ color: 0xbbbbbb });
+  const beamMat = new THREE.MeshLambertMaterial({ color: 0xee3333 });
+  const trimMat = new THREE.MeshLambertMaterial({ color: 0xffffff });
+
+  // Pillars (one on each side)
+  for (const side of [-1, 1]) {
+    const pillar = new THREE.Mesh(
+      new THREE.BoxGeometry(pillarW, pillarH, pillarW),
+      pillarMat,
+    );
+    pillar.position.set(
+      p.x + perpX * archHalfW * side,
+      pillarH / 2,
+      p.z + perpZ * archHalfW * side,
+    );
+    pillar.castShadow = true;
+    trackGroup.add(pillar);
+  }
+
+  // Horizontal beam across the top
+  const beamLen = archHalfW * 2 + pillarW;
+  const beamY = pillarH + beamH / 2;
+  const beam = new THREE.Mesh(
+    new THREE.BoxGeometry(beamLen, beamH, beamD),
+    beamMat,
+  );
+  beam.position.set(p.x, beamY, p.z);
+  beam.rotation.y = angle;
+  beam.castShadow = true;
+  trackGroup.add(beam);
+
+  // White trim strips on the beam
+  const trimH = 0.08;
+  const trim1 = new THREE.Mesh(
+    new THREE.BoxGeometry(beamLen * 0.98, trimH, beamD * 1.01),
+    trimMat,
+  );
+  trim1.position.set(p.x, beamY + beamH / 2 - trimH / 2 - 0.02, p.z);
+  trim1.rotation.y = angle;
+  trackGroup.add(trim1);
+
+  const trim2 = trim1.clone();
+  trim2.position.y = beamY - beamH / 2 + trimH / 2 + 0.02;
+  trackGroup.add(trim2);
+
+  // 5 start lights — centered on the underside of the beam, facing the drivers
+  startLights = [];
+  const lightCount = 5;
+  const lightRadius = 0.12;
+  const lightSpacing = 0.45;
+  const lightY = beamY - beamH / 2 - lightRadius * 1.2;
+  // Position forward of the beam center on the driver-facing side
+  const lightForwardOffset = -beamD / 2 - 0.02;
+
+  // Materials
+  const lightOn = new THREE.MeshBasicMaterial({ color: 0xff2222 });
+  const lightOff = new THREE.MeshBasicMaterial({ color: 0x441111 });
+  const lightGreen = new THREE.MeshBasicMaterial({ color: 0x22ee55 });
+
+  // Light casing (dark disk behind each light)
+  const casingMat = new THREE.MeshLambertMaterial({ color: 0x222222 });
+
+  for (let i = 0; i < lightCount; i++) {
+    const offset = (i - (lightCount - 1) / 2) * lightSpacing;
+
+    // Driver-facing direction is -forward direction (cars approach from behind)
+    const casingGeo = new THREE.BoxGeometry(lightRadius * 2.4, lightRadius * 2.4, 0.04);
+    const casing = new THREE.Mesh(casingGeo, casingMat);
+    casing.position.set(
+      p.x + perpX * offset + dirX * lightForwardOffset,
+      lightY,
+      p.z + perpZ * offset + dirZ * lightForwardOffset,
+    );
+    casing.rotation.y = angle;
+    trackGroup.add(casing);
+
+    // The light itself (slightly in front of the casing, facing drivers)
+    const lightGeo = new THREE.CircleGeometry(lightRadius, 16);
+    const lightMesh = new THREE.Mesh(lightGeo, lightOff);
+    const lightPushForward = lightForwardOffset - 0.03;
+    lightMesh.position.set(
+      p.x + perpX * offset + dirX * lightPushForward,
+      lightY,
+      p.z + perpZ * offset + dirZ * lightPushForward,
+    );
+    // Face the oncoming drivers (they look in +forward, so light should face -forward)
+    lightMesh.rotation.y = angle + Math.PI;
+    trackGroup.add(lightMesh);
+
+    startLights.push({ mesh: lightMesh, onMat: lightOn, offMat: lightOff, greenMat: lightGreen });
   }
 }

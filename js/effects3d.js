@@ -217,13 +217,13 @@ export function addSkidmark(x2d, y2d, angle, steering) {
 
     const geo = new THREE.PlaneGeometry(0.06, 0.3);
     const mat = new THREE.MeshBasicMaterial({
-      color: 0x111111,
+      color: 0x2a2a2a,
       transparent: true,
-      opacity: 0.5,
+      opacity: 0.3,
       depthWrite: false,
       polygonOffset: true,
-      polygonOffsetFactor: -1,
-      polygonOffsetUnits: -1,
+      polygonOffsetFactor: -2,
+      polygonOffsetUnits: -2,
     });
     const mesh = new THREE.Mesh(geo, mat);
 

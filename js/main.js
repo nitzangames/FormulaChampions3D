@@ -54,7 +54,13 @@ let prevCountdown = COUNTDOWN_SECONDS;
 let prevLaps = [];
 let accumulator = 0;
 let lastTime = 0;
-let finishShownTimeout = null;
+
+// Finish tracking — cars are added in the order they cross the finish line
+// after completing NUM_LAPS. Points/standings are computed from this.
+let finishOrder = [];
+let playerFinished = false;
+let playerAutoController = null; // AI that takes over cars[0] after player finishes
+let raceRecorded = false;        // has recordRaceResult been called for this race
 
 // Career-driven
 let career = null;              // cached career state
@@ -418,6 +424,11 @@ function startNextRace() {
   const seed = TRACK_SEEDS[seedIndex];
   currentSeed = seed;
 
+  finishOrder = [];
+  playerFinished = false;
+  playerAutoController = null;
+  raceRecorded = false;
+
   initTrack(seed);
   spawnCars();
   setStartLights(0); // lights out until countdown begins
@@ -433,9 +444,25 @@ function startNextRace() {
 
 // ── Race results ────────────────────────────────────────────────────────────
 
+/**
+ * Show / update the race results screen. Safe to call repeatedly — it
+ * re-renders from the current finishOrder each time.
+ * Points are computed from `finishOrder` (filling unfinished slots with
+ * the remaining car indices by current progress).
+ */
 function showRaceResults(finishOrder) {
-  const playerPos = finishOrder.indexOf(0) + 1;
-  document.getElementById('finish-position').textContent = positionSuffix(playerPos);
+  const playerIdx = 0;
+  const playerFinishPos = finishOrder.indexOf(playerIdx);
+
+  if (playerFinishPos >= 0) {
+    document.getElementById('finish-position').textContent = positionSuffix(playerFinishPos + 1);
+    const pts = POINTS[playerFinishPos] || 0;
+    document.getElementById('finish-points').textContent = pts > 0 ? `+${pts} POINTS` : '';
+  } else {
+    document.getElementById('finish-position').textContent = '—';
+    document.getElementById('finish-points').textContent = '';
+  }
+
   document.getElementById('finish-time').textContent = `TIME: ${formatTime(gameState.raceTime)}`;
 
   const bestEl = document.getElementById('finish-best');
@@ -445,22 +472,64 @@ function showRaceResults(finishOrder) {
     bestEl.textContent = '';
   }
 
-  const pts = POINTS[playerPos - 1] || 0;
-  document.getElementById('finish-points').textContent = pts > 0 ? `+${pts} POINTS` : '';
+  // Build a live race standings display: finished cars in order, then
+  // unfinished cars ranked by current progress.
+  const live = [];
+  for (const idx of finishOrder) live.push({ carIdx: idx, finished: true });
+  const unfinished = [];
+  for (let i = 0; i < cars.length; i++) {
+    if (!finishOrder.includes(i)) unfinished.push(i);
+  }
+  unfinished.sort((a, b) => {
+    const pa = computeProgress({ x: cars[a].physX, y: cars[a].physY }, cars[a].currentWaypointIdx, centerLine, cl, cars[a].lapsCompleted || 0);
+    const pb = computeProgress({ x: cars[b].physX, y: cars[b].physY }, cars[b].currentWaypointIdx, centerLine, cl, cars[b].lapsCompleted || 0);
+    return pb - pa;
+  });
+  for (const idx of unfinished) live.push({ carIdx: idx, finished: false });
 
-  // Record into career
-  const updated = recordRaceResult(finishOrder);
-  career = updated;
-
-  // Show updated championship standings
-  const sorted = [...career.standings].sort((a, b) => b.points - a.points);
-  renderStandings('race-standings', sorted);
+  renderLiveRaceStandings('race-standings', live);
 
   showScreen('finished');
 }
 
+function renderLiveRaceStandings(elementId, entries) {
+  const el = document.getElementById(elementId);
+  if (!el) return;
+  el.innerHTML = '';
+  for (let i = 0; i < entries.length; i++) {
+    const e = entries[i];
+    const row = document.createElement('div');
+    row.className = 'row' + (e.carIdx === 0 ? ' player' : '');
+    const name = e.carIdx === 0 ? 'YOU' : `AI ${e.carIdx}`;
+    const pts = POINTS[i] || 0;
+    const marker = e.finished ? `${pts}pts` : '…';
+    row.innerHTML = `<span><span class="pos">P${i + 1}</span>${name}</span><span>${marker}</span>`;
+    el.appendChild(row);
+  }
+}
+
 function continueFromResults() {
-  career = getCareer();
+  // If the race hasn't been fully recorded yet (player quit before all
+  // cars finished), record it now using the current finishOrder padded
+  // with remaining cars sorted by progress.
+  if (!raceRecorded) {
+    const full = [...finishOrder];
+    const remaining = [];
+    for (let i = 0; i < cars.length; i++) {
+      if (!full.includes(i)) remaining.push(i);
+    }
+    remaining.sort((a, b) => {
+      const pa = computeProgress({ x: cars[a].physX, y: cars[a].physY }, cars[a].currentWaypointIdx, centerLine, cl, cars[a].lapsCompleted || 0);
+      const pb = computeProgress({ x: cars[b].physX, y: cars[b].physY }, cars[b].currentWaypointIdx, centerLine, cl, cars[b].lapsCompleted || 0);
+      return pb - pa;
+    });
+    for (const idx of remaining) full.push(idx);
+    career = recordRaceResult(full);
+    raceRecorded = true;
+  } else {
+    career = getCareer();
+  }
+
   if (!career) { showTitle(); return; }
 
   if (career.completed) {
@@ -673,7 +742,18 @@ function fixedUpdate() {
   if (state === 'racing' || state === 'finishing') {
     gameState.tickRace();
 
-    const playerSteering = input.steering;
+    // Player car — input, unless player has already finished (then AI drives)
+    let playerSteering;
+    if (playerFinished && playerAutoController) {
+      const ownProgress = computeProgress(
+        { x: cars[0].physX, y: cars[0].physY },
+        cars[0].currentWaypointIdx,
+        centerLine, cl, cars[0].lapsCompleted || 0,
+      );
+      playerSteering = playerAutoController.tick(ownProgress, ownProgress);
+    } else {
+      playerSteering = input.steering;
+    }
     cars[0].lastSteering = playerSteering;
     cars[0].update(playerSteering);
 
@@ -713,6 +793,7 @@ function fixedUpdate() {
 
     race.update(gameState.raceTime);
 
+    // Lap-change SFX + finish tracking
     for (let i = 0; i < cars.length; i++) {
       const laps = cars[i].lapsCompleted || 0;
       if (laps > prevLaps[i]) {
@@ -725,30 +806,37 @@ function fixedUpdate() {
           }
         }
         prevLaps[i] = laps;
+
+        // Car just completed a lap. If that was the final lap, mark it
+        // as finished and record into finishOrder.
+        if (laps >= NUM_LAPS && !cars[i].finished) {
+          cars[i].finished = true;
+          finishOrder.push(i);
+
+          if (i === 0) {
+            // Player crossed the line — hand control to an AI clone so the
+            // player's car keeps racing. Skill is the top AI skill.
+            playerFinished = true;
+            playerAutoController = new AIController(
+              cars[0], walls, AI_SKILLS[AI_SKILLS.length - 1], cars,
+            );
+            // Show results screen, keep the race running behind it
+            gameState.state = 'finishing';
+            showRaceResults(finishOrder);
+          } else if (playerFinished) {
+            // Another car finished — update live results
+            showRaceResults(finishOrder);
+          }
+        }
       }
     }
 
-    // Check if player finished
-    if (state === 'racing' && (cars[0].lapsCompleted || 0) >= NUM_LAPS) {
-      gameState.state = 'finishing';
-      cars[0].finished = true;
-
-      // Compute final finish order for ALL cars by progress
-      const finalStandings = rankStandings(cars, (car) =>
-        computeProgress(
-          { x: car.physX, y: car.physY },
-          car.currentWaypointIdx,
-          centerLine, cl, car.lapsCompleted || 0
-        )
-      );
-      const finishOrder = finalStandings.map(s => s.idx);
-
-      gameState.finish(null);
-
-      finishShownTimeout = setTimeout(() => {
-        showRaceResults(finishOrder);
-        finishShownTimeout = null;
-      }, 2000);
+    // When all cars have finished, record the race into the career (once)
+    if (!raceRecorded && finishOrder.length >= NUM_CARS) {
+      raceRecorded = true;
+      career = recordRaceResult(finishOrder);
+      // Re-render with updated championship standings
+      if (playerFinished) showRaceResults(finishOrder);
     }
 
     if (respawnTimer > 0) {

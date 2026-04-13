@@ -128,6 +128,18 @@ html, body {
 .finish-pos { font-size: 64px; font-weight: 900; text-shadow: 0 4px 8px rgba(0,0,0,0.5); }
 .finish-detail { font-size: 16px; color: #ccc; }
 
+/* Results screen — everything 2x except the Continue button */
+#screen-finished h2 { font-size: 56px; }
+#screen-finished .finish-pos { font-size: 128px; }
+#screen-finished .finish-detail { font-size: 32px; }
+#screen-finished .finish-points { font-size: 40px !important; }
+#screen-finished .standings-mini {
+  max-width: 540px;
+  font-size: 26px;
+  padding: 16px 24px;
+}
+#screen-finished .standings-mini .pos { width: 56px; }
+
 /* ── Toggle ───────────────────────────────────────────────────────────────── */
 
 .toggle-row { display: flex; align-items: center; gap: 12px; font-size: 16px; }

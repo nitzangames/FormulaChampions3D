@@ -304,3 +304,10 @@ h2 { font-size: 3cqh; font-weight: 800; letter-spacing: 0.15cqh; }
   border-color: #4ecdc4;
   background: rgba(78, 205, 196, 0.2);
 }
+
+#screen-mpresults .standings-mini {
+  width: 86cqw; max-width: 86cqw;
+  font-size: 2cqh;
+  padding: 2cqh 4cqh;
+}
+#screen-mpresults .standings-mini .row { padding: 0.6cqh 0; }

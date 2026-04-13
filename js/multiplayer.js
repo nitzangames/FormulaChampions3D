@@ -1,7 +1,7 @@
 // js/multiplayer.js
 // All multiplayer glue. Depends on window.PlaySDK being loaded.
 
-import { TIERS, TRACK_SEEDS, MP_SNAPSHOT_INTERVAL_MS, MP_BUFFER_MS } from './constants.js';
+import { TIERS, TRACK_SEEDS, MP_SNAPSHOT_INTERVAL_MS, MP_BUFFER_MS, MP_FINISH_GRACE_MS } from './constants.js';
 
 let localUserId = null;
 
@@ -201,6 +201,56 @@ export function mpIngestCarState(fromUserId, msg) {
   });
   const cutoff = msg.t - 1000;
   while (buf.length > 2 && buf[0].t < cutoff) buf.shift();
+}
+
+const finishedPlayers = new Map();
+let finishWatchdog = null;
+let onAllFinishedCallback = null;
+
+export function mpResetFinishTracker(onAllFinished) {
+  finishedPlayers.clear();
+  if (finishWatchdog) { clearTimeout(finishWatchdog); finishWatchdog = null; }
+  onAllFinishedCallback = onAllFinished;
+}
+
+export function mpReportLocalFinish(userId, finishTime, bestLap) {
+  if (!userId) return;
+  if (finishedPlayers.has(userId)) return;
+  finishedPlayers.set(userId, { finishTime, bestLap });
+  mpBroadcast({ type: 'race-finish', finishTime, bestLap });
+  if (!finishWatchdog) {
+    finishWatchdog = setTimeout(() => _checkAllFinished(true), MP_FINISH_GRACE_MS);
+  }
+  _checkAllFinished(false);
+}
+
+export function mpIngestFinish(fromUserId, msg) {
+  if (finishedPlayers.has(fromUserId)) return;
+  finishedPlayers.set(fromUserId, { finishTime: msg.finishTime, bestLap: msg.bestLap });
+  if (!finishWatchdog) {
+    finishWatchdog = setTimeout(() => _checkAllFinished(true), MP_FINISH_GRACE_MS);
+  }
+  _checkAllFinished(false);
+}
+
+function _checkAllFinished(graceExpired) {
+  const room = mpGetRoom();
+  if (!room) return;
+  const everyoneDone = room.players.every(p => finishedPlayers.has(p.userId));
+  if (everyoneDone || graceExpired) {
+    if (finishWatchdog) { clearTimeout(finishWatchdog); finishWatchdog = null; }
+    const results = room.players.map(p => ({
+      userId: p.userId,
+      name: p.displayName || 'Anonymous',
+      ...(finishedPlayers.get(p.userId) || { finishTime: null, bestLap: null }),
+    })).sort((a, b) => {
+      if (a.finishTime == null && b.finishTime == null) return 0;
+      if (a.finishTime == null) return 1;
+      if (b.finishTime == null) return -1;
+      return a.finishTime - b.finishTime;
+    });
+    if (onAllFinishedCallback) onAllFinishedCallback(results);
+  }
 }
 
 export function mpInterpolateRemote(userId, now) {

@@ -9,5 +9,7 @@ screenshot.js
 screenshot-*.png
 ss-*.png
 thumb-*.png
+render-thumbnail.js
 CLAUDE.md
 .zipignore
+.gitignore

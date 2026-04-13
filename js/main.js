@@ -7,7 +7,7 @@ import {
   VERSION, FIXED_DT, NUM_CARS, NUM_LAPS, MAX_SPEED,
   TRACK_SEEDS, PX_TO_WORLD, RESPAWN_DELAY_SEC, AI_SKILLS,
   COUNTDOWN_SECONDS, TILE, TURN_SPEED_PENALTY,
-  TIERS, POINTS, SEASON_LENGTHS, CAR_COLORS,
+  TIERS, POINTS, SEASON_LENGTHS, CAR_COLORS, SPEED_TO_KMH,
 } from './constants.js';
 import { Car } from './car.js';
 import { generateTrack, buildTrackPath, buildWallPaths, createWallBodies } from './track.js';
@@ -346,7 +346,7 @@ function updateHUD() {
 
     const speedEl = document.getElementById('hud-speed');
     if (speedEl) {
-      const kmh = Math.round(Math.abs(cars[0].speed) * 0.36);
+      const kmh = Math.round(Math.abs(cars[0].speed) * SPEED_TO_KMH);
       speedEl.textContent = `${kmh} km/h`;
     }
 
@@ -1184,7 +1184,7 @@ function renderFrame(dt) {
   if (showWheel) {
     const wheelX = 540;  // centered horizontally
     const wheelY = 1620; // fixed position below the car view
-    const kmh = Math.abs(cars[0]?.speed || 0) * 0.36;
+    const kmh = Math.abs(cars[0]?.speed || 0) * SPEED_TO_KMH;
     drawSteeringWheel(overlayCtx, wheelX, wheelY, input.steering, kmh);
   }
 }

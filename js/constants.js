@@ -14,6 +14,11 @@ export const CAR_H = 141; // ~2.2:1 ratio
 
 // Car physics
 export const MAX_SPEED = 1350;       // px/s at full speed
+
+// Display conversion: speed (px/s) × SPEED_TO_KMH = km/h on HUD/wheel.
+// Tuned so F1 (top tier, speedMult = 1.50) reads exactly 350 km/h at
+// full throttle: 1350 × 1.50 × SPEED_TO_KMH = 350
+export const SPEED_TO_KMH = 350 / (1350 * 1.50);
 export const ACCELERATION = 600;     // px/s² forward force
 export const TURN_RATE = 2.5;        // rad/s at full steering input
 export const TURN_SPEED_PENALTY = 0.35; // speed multiplier at max turn (0-1, lower = more penalty)

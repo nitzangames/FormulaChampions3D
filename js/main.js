@@ -938,7 +938,9 @@ function renderFrame(dt) {
   }
 
   overlayCtx.clearRect(0, 0, 1080, 1920);
-  if (input.dragging && st !== 'paused') {
+  // Show steering wheel during countdown and racing (not on menus or pause)
+  const showWheel = input.dragging && (st === 'countdown' || st === 'racing' || st === 'finishing');
+  if (showWheel) {
     const yOffset = input.pointerType === 'mouse' ? 0 : -220;
     drawSteeringWheel(overlayCtx, input.dragScreenX, input.dragScreenY + yOffset, input.steering, cars[0]?.speed || 0);
   }

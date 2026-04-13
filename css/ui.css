@@ -56,6 +56,14 @@ html, body {
   pointer-events: auto;
 }
 
+/* Non-interactive overlays — let pointer events pass through to the canvas
+   so the player can start a drag (and see the steering wheel) even during
+   countdown / respawn. */
+#screen-countdown,
+#screen-respawn {
+  pointer-events: none;
+}
+
 .hidden { display: none !important; }
 
 #err {

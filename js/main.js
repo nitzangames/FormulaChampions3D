@@ -198,12 +198,24 @@ function spawnCars() {
   const acrossOffsets = [-80, 80];
   const alongOffsets = [-100, -300, -600, -900];
 
+  // Compute spawn positions + the waypoint index each car corresponds to.
+  // Each tile is TILE=512px long. From finish line (wp3) backward:
+  //   -0   .. -512  → in start tile (wp2→wp3)     → initial waypoint = 2
+  //   -512 .. -1024 → in grid tile 2 (wp1→wp2)    → initial waypoint = 1
+  //   -1024..       → in grid tile 1 (wp0→wp1)    → initial waypoint = 0
   const spawnPositions = [];
   for (const along of alongOffsets) {
+    const absAlong = Math.abs(along);
+    let initialWaypoint;
+    if (absAlong < 512)      initialWaypoint = 2;
+    else if (absAlong < 1024) initialWaypoint = 1;
+    else                      initialWaypoint = 0;
+
     for (const across of acrossOffsets) {
       spawnPositions.push({
         x: p.x + fwdX * along + perpX * across,
         y: p.y + fwdY * along + perpY * across,
+        waypointIdx: initialWaypoint,
       });
     }
   }
@@ -222,7 +234,7 @@ function spawnCars() {
     const pos = getSpawnPosForCar(i);
     car.spawn(pos.x, pos.y, spawnAngle);
 
-    car.currentWaypointIdx = finishIdx;
+    car.currentWaypointIdx = pos.waypointIdx;
     car.lapsCompleted = 0;
     car.halfwayReached = false;
     car.seenLowerQuarter = false;

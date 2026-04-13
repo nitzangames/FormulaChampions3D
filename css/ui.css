@@ -231,3 +231,30 @@ html, body {
   font-size: 40px;
   letter-spacing: 2px;
 }
+
+/* Quick-race tier and track selection grids */
+.tier-grid,
+.track-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 14px;
+  padding: 0 20px;
+  max-width: 360px;
+}
+
+.tier-card,
+.track-card {
+  background: rgba(255,255,255,0.1);
+  border: 2px solid rgba(255,255,255,0.2);
+  border-radius: 8px;
+  padding: 18px 14px;
+  text-align: center;
+  cursor: pointer;
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: 1px;
+}
+.tier-card:hover,
+.track-card:hover {
+  border-color: #4ecdc4;
+}

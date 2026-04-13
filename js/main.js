@@ -66,6 +66,11 @@ let raceRecorded = false;        // has recordRaceResult been called for this ra
 let career = null;              // cached career state
 let currentSeed = null;         // seed of the track currently being raced
 
+// Race mode — 'career' or 'quick'. Quick-race uses quickTierIndex and
+// doesn't touch career state.
+let raceMode = 'career';
+let quickTierIndex = 0;
+
 // Minimap
 const minimapCanvas = document.getElementById('minimap');
 const minimapCtx = minimapCanvas.getContext('2d');
@@ -96,6 +101,7 @@ function positionSuffix(pos) {
 
 const SCREEN_IDS = [
   'screen-title', 'screen-seasonsetup', 'screen-career',
+  'screen-quicktier', 'screen-quicktrack',
   'screen-countdown', 'screen-respawn', 'screen-finished',
   'screen-seasonend', 'screen-careercomplete', 'screen-pause',
 ];
@@ -111,7 +117,7 @@ function showScreen(name) {
     }
   }
   // Hide HUD on menu screens
-  if (['title', 'seasonsetup', 'career', 'finished', 'seasonend', 'careercomplete', 'pause'].includes(name)) {
+  if (['title', 'seasonsetup', 'career', 'quicktier', 'quicktrack', 'finished', 'seasonend', 'careercomplete', 'pause'].includes(name)) {
     hideHUD();
   }
 }
@@ -230,8 +236,10 @@ function spawnCars() {
     return i === 0 ? spawnPositions[NUM_CARS - 1] : spawnPositions[i - 1];
   }
 
-  // Get tier speed multiplier
-  const tierIdx = career ? career.tierIndex : 0;
+  // Get tier speed multiplier (career tier for career mode, selected tier for quick race)
+  const tierIdx = raceMode === 'quick'
+    ? quickTierIndex
+    : (career ? career.tierIndex : 0);
   const speedMult = TIERS[tierIdx].speedMult;
 
   for (let i = 0; i < NUM_CARS; i++) {
@@ -414,6 +422,7 @@ function renderStandings(elementId, sortedStandings) {
 function startNextRace() {
   career = getCareer();
   if (!career) { showTitle(); return; }
+  raceMode = 'career';
 
   const seedIndex = career.trackOrder[career.currentRace];
   const seed = TRACK_SEEDS[seedIndex];
@@ -435,6 +444,69 @@ function startNextRace() {
 
   lastTime = 0;
   accumulator = 0;
+}
+
+// ── Quick Race ──────────────────────────────────────────────────────────────
+
+function startQuickRace(tierIdx, seed) {
+  raceMode = 'quick';
+  quickTierIndex = tierIdx;
+  currentSeed = seed;
+
+  finishOrder = [];
+  playerFinished = false;
+  playerAutoController = null;
+  raceRecorded = false;
+
+  initTrack(seed);
+  spawnCars();
+  setStartLights(0);
+  gameState.startCountdown();
+  prevCountdown = COUNTDOWN_SECONDS;
+
+  showScreen('countdown');
+  showHUD();
+
+  lastTime = 0;
+  accumulator = 0;
+}
+
+function showQuickTierSelect() {
+  const grid = document.getElementById('tier-grid');
+  if (grid) {
+    grid.innerHTML = '';
+    for (let i = 0; i < TIERS.length; i++) {
+      const card = document.createElement('div');
+      card.className = 'tier-card';
+      card.textContent = TIERS[i].name;
+      card.addEventListener('click', () => {
+        playClick(); hapticTap();
+        quickTierIndex = i;
+        showQuickTrackSelect();
+      });
+      grid.appendChild(card);
+    }
+  }
+  showScreen('quicktier');
+}
+
+function showQuickTrackSelect() {
+  const grid = document.getElementById('quicktrack-grid');
+  if (grid) {
+    grid.innerHTML = '';
+    for (let i = 0; i < TRACK_SEEDS.length; i++) {
+      const card = document.createElement('div');
+      card.className = 'track-card';
+      card.textContent = `TRACK ${i + 1}`;
+      const seed = TRACK_SEEDS[i];
+      card.addEventListener('click', () => {
+        playClick(); hapticTap();
+        startQuickRace(quickTierIndex, seed);
+      });
+      grid.appendChild(card);
+    }
+  }
+  showScreen('quicktrack');
 }
 
 // ── Race results ────────────────────────────────────────────────────────────
@@ -504,9 +576,15 @@ function renderLiveRaceStandings(elementId, entries) {
 }
 
 function continueFromResults() {
-  // If the race hasn't been fully recorded yet (player quit before all
-  // cars finished), record it now using the current finishOrder padded
-  // with remaining cars sorted by progress.
+  // Quick race: no career recording, just go back to title
+  if (raceMode === 'quick') {
+    showTitle();
+    return;
+  }
+
+  // Career race — if the race hasn't been fully recorded yet (player
+  // clicked Continue before all cars finished), record it now using the
+  // current finishOrder padded with remaining cars sorted by progress.
   if (!raceRecorded) {
     const full = [...finishOrder];
     const remaining = [];
@@ -595,6 +673,24 @@ function setupButtons() {
     showCareerHome();
   });
 
+  // Title: Quick Race
+  document.getElementById('btn-quick-race').addEventListener('click', () => {
+    playClick(); hapticTap();
+    showQuickTierSelect();
+  });
+
+  // Quick tier: back
+  document.getElementById('btn-quicktier-back').addEventListener('click', () => {
+    playClick(); hapticTap();
+    showTitle();
+  });
+
+  // Quick track: back
+  document.getElementById('btn-quicktrack-back').addEventListener('click', () => {
+    playClick(); hapticTap();
+    showQuickTierSelect();
+  });
+
   // Season setup: season length buttons
   document.querySelectorAll('.btn-season').forEach((btn) => {
     btn.addEventListener('click', () => {
@@ -647,7 +743,11 @@ function setupButtons() {
   // Pause: Retry
   document.getElementById('btn-retry').addEventListener('click', () => {
     playClick(); hapticTap();
-    startNextRace();
+    if (raceMode === 'quick') {
+      startQuickRace(quickTierIndex, currentSeed);
+    } else {
+      startNextRace();
+    }
   });
 
   // Pause: Quit
@@ -655,7 +755,11 @@ function setupButtons() {
     playClick(); hapticTap();
     clearEffects();
     gameState.reset();
-    showCareerHome();
+    if (raceMode === 'quick') {
+      showTitle();
+    } else {
+      showCareerHome();
+    }
   });
 
   // Finished: Continue
@@ -826,11 +930,13 @@ function fixedUpdate() {
       }
     }
 
-    // When all cars have finished, record the race into the career (once)
+    // When all cars have finished, record the race into the career (once).
+    // Quick-race mode doesn't touch career state.
     if (!raceRecorded && finishOrder.length >= NUM_CARS) {
       raceRecorded = true;
-      career = recordRaceResult(finishOrder);
-      // Re-render with updated championship standings
+      if (raceMode === 'career') {
+        career = recordRaceResult(finishOrder);
+      }
       if (playerFinished) showRaceResults(finishOrder);
     }
 

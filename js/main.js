@@ -989,13 +989,14 @@ function renderFrame(dt) {
   }
 
   overlayCtx.clearRect(0, 0, 1080, 1920);
-  // Show steering wheel during countdown and racing (not on menus or pause)
-  const showWheel = input.dragging && (st === 'countdown' || st === 'racing' || st === 'finishing');
+  // Always show the steering wheel during countdown/racing (fixed position
+  // below the car). Canvas is 1080x1920 — wheel sits near the bottom-center.
+  const showWheel = st === 'countdown' || st === 'racing' || st === 'finishing';
   if (showWheel) {
-    const yOffset = input.pointerType === 'mouse' ? 0 : -220;
-    // Pass km/h to the wheel's LCD (speed in px/s × 0.36)
+    const wheelX = 540;  // centered horizontally
+    const wheelY = 1620; // fixed position below the car view
     const kmh = Math.abs(cars[0]?.speed || 0) * 0.36;
-    drawSteeringWheel(overlayCtx, input.dragScreenX, input.dragScreenY + yOffset, input.steering, kmh);
+    drawSteeringWheel(overlayCtx, wheelX, wheelY, input.steering, kmh);
   }
 }
 

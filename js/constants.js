@@ -92,7 +92,7 @@ export const CHASE_CAM_FOV_SPEED_BONUS = 5;
 // 3D Scale
 export const PX_TO_WORLD = 1 / 100;
 export const ROAD_HALF_WIDTH = 3;
-export const WALL_HEIGHT = 0.5;
+export const WALL_HEIGHT = 0.25;
 export const WALL_BLOCK_LENGTH = 0.6;
 
 // Fixed roster of 10 track seeds, grouped into 5 difficulty buckets of

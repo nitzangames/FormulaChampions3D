@@ -284,17 +284,18 @@ function spawnCars() {
   const speedMult = TIERS[tierIdx].speedMult;
 
   // Decide which cars to spawn based on race mode.
+  // In MP, grid slot = index in room.players (canonical across all clients).
+  // Local player must stay at cars[0] so input/camera/HUD keep working.
   const carSpawnSpecs = [];
   if (raceMode === 'multiplayer') {
     const room = mpGetRoom();
     const players = room ? room.players : [];
     const myId = mpLocalUserId();
-    // Local player always slot 0 (P8 spawn position) — keeps existing input path.
-    carSpawnSpecs.push({ slotIdx: 0, isLocal: true, userId: myId });
-    let slot = 1;
-    for (const p of players) {
-      if (p.userId === myId) continue;
-      carSpawnSpecs.push({ slotIdx: slot++, isLocal: false, userId: p.userId });
+    const myIdx = Math.max(0, players.findIndex(p => p.userId === myId));
+    carSpawnSpecs.push({ slotIdx: myIdx, isLocal: true, userId: myId });
+    for (let i = 0; i < players.length; i++) {
+      if (i === myIdx) continue;
+      carSpawnSpecs.push({ slotIdx: i, isLocal: false, userId: players[i].userId });
     }
   } else {
     for (let i = 0; i < NUM_CARS; i++) {
@@ -305,7 +306,9 @@ function spawnCars() {
   for (const spec of carSpawnSpecs) {
     const i = spec.slotIdx;
     const car = new Car(world, { isKinematic: !spec.isLocal && raceMode === 'multiplayer' });
-    const pos = getSpawnPosForCar(i);
+    // MP: slot index maps directly to spawnPositions (front row first).
+    // SP: existing special mapping puts player at P8 (back of grid).
+    const pos = (raceMode === 'multiplayer') ? spawnPositions[i] : getSpawnPosForCar(i);
     car.spawn(pos.x, pos.y, spawnAngle);
     car.currentWaypointIdx = pos.waypointIdx;
     car.lapsCompleted = 0;

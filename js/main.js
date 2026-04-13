@@ -576,6 +576,10 @@ function renderLiveRaceStandings(elementId, entries) {
 }
 
 function continueFromResults() {
+  // Stop the background race simulation so trailing AI finishes can't
+  // re-open the results screen over whatever we navigate to next.
+  gameState.state = 'postrace';
+
   // Quick race: no career recording, just go back to title
   if (raceMode === 'quick') {
     showTitle();

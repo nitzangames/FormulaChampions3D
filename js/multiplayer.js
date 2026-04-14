@@ -215,20 +215,32 @@ export function mpIngestCarState(fromUserId, msg) {
   while (buf.length > 2 && buf[0].t < cutoff) buf.shift();
 }
 
-const finishedPlayers = new Map();
+// Finish tracking. Kept robust even when mpLocalUserId() returns null:
+//   - localFinished is a boolean latch for the local player's finish.
+//   - remoteFinishes is keyed by fromUserId from incoming race-finish
+//     messages (server-stamped, always accurate).
+// "All done" = localFinished + |remoteFinishes| >= room.players.length.
+// No userId match required to count ourselves.
+let localFinished = false;
+let localFinishData = null; // { finishTime, bestLap }
+const remoteFinishes = new Map();
 let finishWatchdog = null;
 let onAllFinishedCallback = null;
 
 export function mpResetFinishTracker(onAllFinished) {
-  finishedPlayers.clear();
+  localFinished = false;
+  localFinishData = null;
+  remoteFinishes.clear();
   if (finishWatchdog) { clearTimeout(finishWatchdog); finishWatchdog = null; }
   onAllFinishedCallback = onAllFinished;
 }
 
 export function mpReportLocalFinish(userId, finishTime, bestLap) {
-  if (!userId) return;
-  if (finishedPlayers.has(userId)) return;
-  finishedPlayers.set(userId, { finishTime, bestLap });
+  if (localFinished) return;
+  localFinished = true;
+  localFinishData = { finishTime, bestLap };
+  // Broadcast regardless of whether we know our own userId — the server
+  // stamps `from` on relay, so recipients will know it came from us.
   mpBroadcast({ type: 'race-finish', finishTime, bestLap });
   if (!finishWatchdog) {
     finishWatchdog = setTimeout(() => _checkAllFinished(true), MP_FINISH_GRACE_MS);
@@ -237,8 +249,8 @@ export function mpReportLocalFinish(userId, finishTime, bestLap) {
 }
 
 export function mpIngestFinish(fromUserId, msg) {
-  if (finishedPlayers.has(fromUserId)) return;
-  finishedPlayers.set(fromUserId, { finishTime: msg.finishTime, bestLap: msg.bestLap });
+  if (remoteFinishes.has(fromUserId)) return;
+  remoteFinishes.set(fromUserId, { finishTime: msg.finishTime, bestLap: msg.bestLap });
   if (!finishWatchdog) {
     finishWatchdog = setTimeout(() => _checkAllFinished(true), MP_FINISH_GRACE_MS);
   }
@@ -248,21 +260,40 @@ export function mpIngestFinish(fromUserId, msg) {
 function _checkAllFinished(graceExpired) {
   const room = mpGetRoom();
   if (!room) return;
-  const everyoneDone = room.players.every(p => finishedPlayers.has(p.userId));
-  if (everyoneDone || graceExpired) {
-    if (finishWatchdog) { clearTimeout(finishWatchdog); finishWatchdog = null; }
-    const results = room.players.map(p => ({
-      userId: p.userId,
-      name: p.displayName || 'Anonymous',
-      ...(finishedPlayers.get(p.userId) || { finishTime: null, bestLap: null }),
-    })).sort((a, b) => {
-      if (a.finishTime == null && b.finishTime == null) return 0;
-      if (a.finishTime == null) return 1;
-      if (b.finishTime == null) return -1;
-      return a.finishTime - b.finishTime;
-    });
-    if (onAllFinishedCallback) onAllFinishedCallback(results);
+
+  const totalPlayers = room.players.length;
+  const doneCount = remoteFinishes.size + (localFinished ? 1 : 0);
+  if (doneCount < totalPlayers && !graceExpired) return;
+
+  if (finishWatchdog) { clearTimeout(finishWatchdog); finishWatchdog = null; }
+
+  // Figure out which room.players entry is "us" so we can attach our local
+  // finish data. Prefer matching against mpLocalUserId() if known; otherwise
+  // pick the single player that isn't in remoteFinishes (since the server
+  // never echoes our own message back to us).
+  const myId = localUserId;
+  let selfIdx = myId ? room.players.findIndex(p => p.userId === myId) : -1;
+  if (selfIdx < 0 && localFinished) {
+    selfIdx = room.players.findIndex(p => !remoteFinishes.has(p.userId));
   }
+
+  const results = room.players.map((p, i) => {
+    const isMe = (i === selfIdx);
+    const data = isMe
+      ? (localFinishData || { finishTime: null, bestLap: null })
+      : (remoteFinishes.get(p.userId) || { finishTime: null, bestLap: null });
+    return {
+      userId: p.userId,
+      name: isMe ? (p.displayName || 'YOU') : (p.displayName || 'Anonymous'),
+      ...data,
+    };
+  }).sort((a, b) => {
+    if (a.finishTime == null && b.finishTime == null) return 0;
+    if (a.finishTime == null) return 1;
+    if (b.finishTime == null) return -1;
+    return a.finishTime - b.finishTime;
+  });
+  if (onAllFinishedCallback) onAllFinishedCallback(results);
 }
 
 const MP_EXTRAPOLATE_MS = 150; // keep extrapolating forward this long past last snap

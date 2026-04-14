@@ -449,7 +449,7 @@ function updateHUD() {
     }
   }
 
-  if (state === 'racing' || state === 'finishing') {
+  if ((state === 'racing' || state === 'finishing') && cars[0]) {
     const laps = Math.min((cars[0].lapsCompleted || 0) + 1, NUM_LAPS);
     const lapEl = document.getElementById('hud-lap');
     if (lapEl) lapEl.textContent = `LAP ${laps}/${NUM_LAPS}`;
@@ -466,7 +466,7 @@ function updateHUD() {
 
     const speedEl = document.getElementById('hud-speed');
     if (speedEl) {
-      const kmh = Math.round(Math.abs(cars[0].speed) * SPEED_TO_KMH);
+      const kmh = Math.round(Math.abs(cars[0].speed || 0) * SPEED_TO_KMH);
       speedEl.textContent = `${kmh} km/h`;
     }
 
@@ -481,7 +481,8 @@ function updateHUD() {
       );
       const playerStanding = standings.find(s => s.idx === 0);
       const pos = playerStanding ? playerStanding.position : 1;
-      posEl.textContent = `POS ${pos}/${NUM_CARS}`;
+      const total = raceMode === 'multiplayer' ? cars.length : NUM_CARS;
+      posEl.textContent = `POS ${pos}/${total}`;
     }
   }
 }

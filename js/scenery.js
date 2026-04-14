@@ -627,6 +627,111 @@ const TREE_BUILDERS = [
   buildDeadTree, buildWillow, buildBaobab, buildRedwood, buildJoshuaTree,
 ];
 
+// ── Decor builders ─────────────────────────────────────────────────────────
+// Small roadside objects placed alongside trees. Universal: rocks + grass.
+// Seed picks ONE "featured" extra (bush, hay, mushroom) per track.
+
+function buildSmallRock() {
+  const rock = new THREE.Mesh(
+    new THREE.IcosahedronGeometry(0.25, 0),
+    new THREE.MeshLambertMaterial({ color: 0x777777, flatShading: true }),
+  );
+  rock.rotation.set(Math.random(), Math.random(), Math.random());
+  rock.castShadow = true;
+  return rock;
+}
+
+function buildMediumRock() {
+  const group = new THREE.Group();
+  const base = new THREE.Mesh(
+    new THREE.IcosahedronGeometry(0.45, 0),
+    new THREE.MeshLambertMaterial({ color: 0x6a6a6a, flatShading: true }),
+  );
+  base.rotation.set(Math.random(), Math.random(), Math.random());
+  base.scale.set(1, 0.7, 1);
+  base.castShadow = true;
+  group.add(base);
+  if (Math.random() < 0.5) {
+    const top = new THREE.Mesh(
+      new THREE.IcosahedronGeometry(0.2, 0),
+      new THREE.MeshLambertMaterial({ color: 0x7a7a7a, flatShading: true }),
+    );
+    top.position.set(0.1, 0.32, 0.05);
+    top.rotation.set(Math.random(), Math.random(), Math.random());
+    group.add(top);
+  }
+  return group;
+}
+
+function buildGrassTuft() {
+  // Cluster of 5 small blades as vertical planes
+  const group = new THREE.Group();
+  const mat = new THREE.MeshLambertMaterial({
+    color: 0x66a02a,
+    side: THREE.DoubleSide,
+  });
+  for (let i = 0; i < 5; i++) {
+    const a = Math.random() * Math.PI * 2;
+    const r = Math.random() * 0.12;
+    const blade = new THREE.Mesh(new THREE.PlaneGeometry(0.06, 0.2), mat);
+    blade.position.set(Math.cos(a) * r, 0.1, Math.sin(a) * r);
+    blade.rotation.y = Math.random() * Math.PI * 2;
+    blade.rotation.z = (Math.random() - 0.5) * 0.3;
+    group.add(blade);
+  }
+  return group;
+}
+
+function buildBush() {
+  const group = new THREE.Group();
+  const mat = new THREE.MeshLambertMaterial({ color: 0x4a8a2a });
+  const blobs = [
+    { y: 0.22, r: 0.25, x: 0,     z: 0     },
+    { y: 0.32, r: 0.2,  x: 0.15,  z: 0.05  },
+    { y: 0.3,  r: 0.22, x: -0.12, z: 0.1   },
+    { y: 0.28, r: 0.18, x: 0.05,  z: -0.12 },
+  ];
+  for (const b of blobs) {
+    const sphere = new THREE.Mesh(
+      new THREE.IcosahedronGeometry(b.r, 0),
+      mat,
+    );
+    sphere.position.set(b.x, b.y, b.z);
+    sphere.castShadow = true;
+    group.add(sphere);
+  }
+  return group;
+}
+
+function buildMushroom() {
+  const group = new THREE.Group();
+  const stem = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.06, 0.08, 0.25, 5),
+    new THREE.MeshLambertMaterial({ color: 0xf0ead2 }),
+  );
+  stem.position.y = 0.125;
+  group.add(stem);
+  const cap = new THREE.Mesh(
+    new THREE.SphereGeometry(0.18, 8, 6, 0, Math.PI * 2, 0, Math.PI / 2),
+    new THREE.MeshLambertMaterial({ color: 0xd02828 }),
+  );
+  cap.position.y = 0.25;
+  cap.castShadow = true;
+  group.add(cap);
+  const spotMat = new THREE.MeshLambertMaterial({ color: 0xffffff });
+  for (let i = 0; i < 5; i++) {
+    const a = Math.random() * Math.PI * 2;
+    const r = 0.05 + Math.random() * 0.1;
+    const spot = new THREE.Mesh(new THREE.SphereGeometry(0.03, 5, 4), spotMat);
+    spot.position.set(Math.cos(a) * r, 0.34, Math.sin(a) * r);
+    group.add(spot);
+  }
+  return group;
+}
+
+const UNIVERSAL_DECOR = [buildSmallRock, buildMediumRock, buildGrassTuft];
+const FEATURED_DECOR  = [buildBush, buildMushroom];
+
 // Seed-derived PRNG (mulberry32) for deterministic per-track tree mix.
 function mulberry32(seed) {
   let a = (seed | 0) >>> 0;
@@ -655,6 +760,9 @@ export function buildScenery(scene, centerLine, walls, track, seed) {
 
   const rng = mulberry32(typeof seed === 'number' ? seed : (Math.random() * 0xffffffff) | 0);
   const treeBuilder = TREE_BUILDERS[Math.floor(rng() * TREE_BUILDERS.length)];
+  // Universal rocks + grass everywhere; plus ONE seed-picked featured decor.
+  const featured = FEATURED_DECOR[Math.floor(rng() * FEATURED_DECOR.length)];
+  const decorBuilders = [...UNIVERSAL_DECOR, featured];
 
   const occupied = new Set();
   if (track && track.tiles) {
@@ -720,6 +828,45 @@ export function buildScenery(scene, centerLine, walls, track, seed) {
     tryPlaceTree(lw.x * PX_TO_WORLD + lNx * d1, lw.y * PX_TO_WORLD + lNz * d1);
     const d2 = 2 + rng() * 6;
     tryPlaceTree(rw.x * PX_TO_WORLD + rNx * d2, rw.y * PX_TO_WORLD + rNz * d2);
+  }
+
+  // ── Roadside decor (rocks, grass, featured extra) ──────────────────────
+  // Tighter step than trees; placed close to the wall on either side.
+  function tryPlaceDecor(wx, wz) {
+    if (isInTrack(wx, wz)) return;
+    const builder = decorBuilders[Math.floor(rng() * decorBuilders.length)];
+    const decor = builder();
+    decor.position.set(wx, 0, wz);
+    decor.rotation.y = rng() * Math.PI * 2;
+    const s = 0.7 + rng() * 0.6;
+    decor.scale.set(s, s, s);
+    sceneryGroup.add(decor);
+  }
+
+  const decorStep = 4;
+  for (let i = 0; i < n; i += decorStep) {
+    if (rng() > 0.55) continue;
+
+    const li = Math.min(i, walls.left.length - 1);
+    const ri = Math.min(i, walls.right.length - 1);
+    const ci = centerLine[i];
+    const lw = walls.left[li];
+    const rw = walls.right[ri];
+    if (!lw || !rw) continue;
+
+    const useLeft = rng() < 0.5;
+    const wall = useLeft ? lw : rw;
+
+    const ndx = (wall.x - ci.x) * PX_TO_WORLD;
+    const ndz = (wall.y - ci.y) * PX_TO_WORLD;
+    const len = Math.sqrt(ndx * ndx + ndz * ndz) || 1;
+    const nx = ndx / len;
+    const nz = ndz / len;
+
+    const offset = 1 + rng() * 4; // 1-5 world units past the wall
+    const wx = wall.x * PX_TO_WORLD + nx * offset;
+    const wz = wall.y * PX_TO_WORLD + nz * offset;
+    tryPlaceDecor(wx, wz);
   }
 
   // ── Grandstands on long straights ─────────────────────────────────────

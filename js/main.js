@@ -1465,8 +1465,13 @@ function boot() {
     urlParams.get('screenshot') === '1';
 
   if (screenshotMode) {
+    // Allow overriding tier and seed via URL for variety in App Store shots.
+    const seedIdx = Math.max(0, Math.min(TRACK_SEEDS.length - 1,
+      parseInt(urlParams.get('seed'), 10) || 0));
+    const tierIdx = Math.max(0, Math.min(3,
+      urlParams.has('tier') ? parseInt(urlParams.get('tier'), 10) : 3));
     setTimeout(() => {
-      startQuickRace(3, TRACK_SEEDS[2]);
+      startQuickRace(tierIdx, TRACK_SEEDS[seedIdx]);
       const pauseBtn = document.getElementById('btn-pause');
       if (pauseBtn) pauseBtn.classList.add('hidden');
       const minimap = document.getElementById('minimap');

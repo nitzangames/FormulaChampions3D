@@ -32,8 +32,13 @@
 </div>
 
 <div class="section">
-  <h2>New Five</h2>
+  <h2>Batch 2</h2>
   <div class="grid" id="new"></div>
+</div>
+
+<div class="section">
+  <h2>Batch 3 — new</h2>
+  <div class="grid" id="batch3"></div>
 </div>
 
 <script>
@@ -344,7 +349,160 @@ mount('orig', buildCactus,    'Cactus',    'Saguaro. Desert theme.');
 mount('new', buildBirch,         'Birch',          'Tall skinny white trunk with black dashes, sparse green crown.');
 mount('new', buildCherryBlossom, 'Cherry Blossom', 'Pink puffy crown. Spring feel.');
 mount('new', buildAutumnMaple,   'Autumn Maple',   'Red/orange/yellow crown. Fall feel.');
-mount('new', buildAcacia,        'Acacia',         'Flat-top savanna silhouette on a skinny trunk.');
 mount('new', buildBamboo,        'Bamboo',         'Cluster of 6 thin green stalks with joint rings.');
+
+// ─── Batch 3 ───────────────────────────────────────────────────────────────
+
+function buildDeadTree() {
+  const group = new THREE.Group();
+  const woodMat = new THREE.MeshLambertMaterial({ color: 0x5a4838 });
+  const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.24, 1.6, 6), woodMat);
+  trunk.position.y = 0.8; group.add(trunk);
+  const MAIN = 5;
+  for (let i = 0; i < MAIN; i++) {
+    const a = (i / MAIN) * Math.PI * 2;
+    const len = 0.9 + Math.random() * 0.4;
+    const tilt = 0.5 + Math.random() * 0.3;
+    const pivot = new THREE.Group();
+    pivot.position.set(Math.cos(a) * 0.1, 1.55, Math.sin(a) * 0.1);
+    pivot.rotateY(-a);
+    pivot.rotateZ(-tilt);
+    const branch = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.09, len, 5), woodMat);
+    branch.position.y = len / 2;
+    pivot.add(branch);
+    if (Math.random() < 0.7) {
+      const twigLen = 0.3 + Math.random() * 0.3;
+      const twigTilt = -0.3 + Math.random() * 0.6;
+      const tp = new THREE.Group();
+      tp.position.y = len;
+      tp.rotateZ(twigTilt);
+      const twig = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.04, twigLen, 4), woodMat);
+      twig.position.y = twigLen / 2;
+      tp.add(twig);
+      pivot.add(tp);
+    }
+    group.add(pivot);
+  }
+  return group;
+}
+
+function buildWillow() {
+  const group = new THREE.Group();
+  const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.2, 1.0, 6),
+    new THREE.MeshLambertMaterial({ color: 0x4e3620 }));
+  trunk.position.y = 0.5; group.add(trunk);
+  const leafMat = new THREE.MeshLambertMaterial({ color: 0x86a63a });
+  const canopy = new THREE.Mesh(new THREE.SphereGeometry(0.9, 10, 8), leafMat);
+  canopy.position.y = 1.6; canopy.scale.set(1.0, 0.9, 1.0); group.add(canopy);
+  const strandMat = new THREE.MeshLambertMaterial({ color: 0x96b04a });
+  for (let i = 0; i < 18; i++) {
+    const a = Math.random() * Math.PI * 2;
+    const r = 0.15 + Math.random() * 0.35;
+    const len = 0.6 + Math.random() * 0.7;
+    const strand = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.02, len, 4), strandMat);
+    strand.position.set(Math.cos(a) * r, 1.6 - len / 2 + 0.1, Math.sin(a) * r);
+    group.add(strand);
+  }
+  return group;
+}
+
+function buildBaobab() {
+  const group = new THREE.Group();
+  const trunkMat = new THREE.MeshLambertMaterial({ color: 0x9a7844 });
+  const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.75, 2.0, 8), trunkMat);
+  trunk.position.y = 1.0; group.add(trunk);
+  const base = new THREE.Mesh(
+    new THREE.SphereGeometry(0.75, 8, 6, 0, Math.PI * 2, 0, Math.PI / 2), trunkMat);
+  base.position.y = 0.3; base.scale.set(1, 0.4, 1); group.add(base);
+  const leafMat = new THREE.MeshLambertMaterial({ color: 0x4a6a32 });
+  const bl = 0.6;
+  for (let i = 0; i < 5; i++) {
+    const a = (i / 5) * Math.PI * 2;
+    const tilt = 0.9;
+    const pivot = new THREE.Group();
+    pivot.position.set(Math.cos(a) * 0.3, 2.0, Math.sin(a) * 0.3);
+    pivot.rotateY(-a);
+    pivot.rotateZ(-tilt);
+    const branch = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.09, bl, 5), trunkMat);
+    branch.position.y = bl / 2;
+    pivot.add(branch);
+    const leaves = new THREE.Mesh(new THREE.IcosahedronGeometry(0.32, 0), leafMat);
+    leaves.position.y = bl + 0.18;
+    pivot.add(leaves);
+    group.add(pivot);
+  }
+  return group;
+}
+
+function buildRedwood() {
+  const group = new THREE.Group();
+  const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.24, 3.2, 7),
+    new THREE.MeshLambertMaterial({ color: 0x7a3a20 }));
+  trunk.position.y = 1.6; group.add(trunk);
+  const fol = new THREE.MeshLambertMaterial({ color: 0x1e4a2a });
+  const cones = [
+    { h: 2.0, r: 0.9, y: 3.2 },
+    { h: 1.6, r: 0.7, y: 4.1 },
+    { h: 1.2, r: 0.5, y: 4.85 },
+  ];
+  for (const c of cones) {
+    const cone = new THREE.Mesh(new THREE.ConeGeometry(c.r, c.h, 6), fol);
+    cone.position.y = c.y; group.add(cone);
+  }
+  return group;
+}
+
+function buildJoshuaTree() {
+  const group = new THREE.Group();
+  const woodMat = new THREE.MeshLambertMaterial({ color: 0x6a4a28 });
+  const needleMat = new THREE.MeshLambertMaterial({ color: 0x4a5f28 });
+  const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.17, 0.24, 1.3, 6), woodMat);
+  trunk.position.y = 0.65; group.add(trunk);
+  function spikyTuft() {
+    const tuft = new THREE.Group();
+    for (let i = 0; i < 10; i++) {
+      const a = Math.random() * Math.PI * 2;
+      const pitch = Math.random() * Math.PI * 0.6;
+      const needle = new THREE.Mesh(new THREE.ConeGeometry(0.04, 0.22, 4), needleMat);
+      needle.position.set(
+        Math.cos(a) * Math.sin(pitch) * 0.1,
+        Math.cos(pitch) * 0.1,
+        Math.sin(a) * Math.sin(pitch) * 0.1,
+      );
+      needle.rotation.z = Math.cos(a) * pitch;
+      needle.rotation.x = -Math.sin(a) * pitch;
+      tuft.add(needle);
+    }
+    return tuft;
+  }
+  const branches = [
+    { a: 0.3, tilt: 0.9, len: 0.9, yStart: 1.2 },
+    { a: 2.5, tilt: 0.7, len: 1.1, yStart: 1.1 },
+    { a: 4.5, tilt: 0.8, len: 0.8, yStart: 1.25 },
+  ];
+  for (const b of branches) {
+    const pivot = new THREE.Group();
+    pivot.position.set(0, b.yStart, 0);
+    pivot.rotateY(-b.a);
+    pivot.rotateZ(-b.tilt);
+    const branch = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.11, b.len, 5), woodMat);
+    branch.position.y = b.len / 2;
+    pivot.add(branch);
+    const tuft = spikyTuft();
+    tuft.position.y = b.len + 0.08;
+    pivot.add(tuft);
+    group.add(pivot);
+  }
+  const top = spikyTuft();
+  top.position.y = 1.4;
+  group.add(top);
+  return group;
+}
+
+mount('batch3', buildDeadTree,   'Dead Tree',    'Bare branches, no foliage. Spooky / winter.');
+mount('batch3', buildWillow,     'Willow',       'Drooping teardrop with hanging green strands.');
+mount('batch3', buildBaobab,     'Baobab',       'Fat swollen trunk, sparse high branches. Savanna.');
+mount('batch3', buildRedwood,    'Redwood',      'Very tall columnar evergreen. Towering silhouette.');
+mount('batch3', buildJoshuaTree, 'Joshua Tree',  'Desert branching with spiky needle tufts.');
 </script>
 </body></html>

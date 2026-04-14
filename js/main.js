@@ -1453,6 +1453,26 @@ function boot() {
   lastTime = 0;
   accumulator = 0;
   requestAnimationFrame(gameLoop);
+
+  // Screenshot mode: the platform loads us with ?screenshot=1 and captures
+  // the canvas after ~6s. Skip menus, auto-start an F1 race on a scenic
+  // track. Countdown (3s) + a few seconds of racing = good action shot.
+  // Also honor the URL param directly so this works on localhost (where
+  // the PlaySDK CDN script may not be reachable).
+  const urlParams = new URLSearchParams(window.location.search);
+  const screenshotMode =
+    (window.PlaySDK && window.PlaySDK.screenshotMode) ||
+    urlParams.get('screenshot') === '1';
+
+  if (screenshotMode) {
+    setTimeout(() => {
+      startQuickRace(3, TRACK_SEEDS[2]);
+      const pauseBtn = document.getElementById('btn-pause');
+      if (pauseBtn) pauseBtn.classList.add('hidden');
+      const minimap = document.getElementById('minimap');
+      if (minimap) minimap.classList.add('hidden');
+    }, 100);
+  }
 }
 
 boot();

@@ -10,6 +10,7 @@ screenshot-*.png
 ss-*.png
 thumb-*.png
 render-thumbnail.js
+tree-mockups.html
 CLAUDE.md
 .zipignore
 .gitignore

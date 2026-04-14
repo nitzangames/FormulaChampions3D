@@ -187,6 +187,7 @@ export function spawnSparks(x2d, y2d) {
 
     sprite.position.set(wx, 0.2, wz);
     sprite.visible = true;
+    sprite.material.color.setHex(0xff8800);
     sprite.material.opacity = 1;
     sprite.scale.set(0.08, 0.08, 0.08);
 
@@ -196,6 +197,64 @@ export function spawnSparks(x2d, y2d) {
     s.vz = (Math.random() - 0.5) * 8;
     s.life = 0.3;
     s.maxLife = 0.3;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// spawnImpactBurst — dramatic car-on-car collision flash
+//   · bright yellow-white sparks (wider spread + faster than wall sparks)
+//   · 3 smoke puffs for a solid impact silhouette
+//   · optional intensity scales count + velocity (default 1.0)
+// ---------------------------------------------------------------------------
+
+export function spawnImpactBurst(x2d, y2d, intensity = 1) {
+  const wx = x2d * PX_TO_WORLD;
+  const wz = y2d * PX_TO_WORLD;
+
+  // Sparks — bright yellow-white, high velocity
+  const sparkCount = Math.round(8 * intensity);
+  for (let i = 0; i < sparkCount; i++) {
+    const s = sparkState[sparkIndex];
+    const sprite = sparkSprites[sparkIndex];
+    sparkIndex = (sparkIndex + 1) % SPARK_POOL_SIZE;
+
+    sprite.position.set(wx, 0.25, wz);
+    sprite.visible = true;
+    sprite.material.color.setHex(i % 2 === 0 ? 0xffee88 : 0xffffff);
+    sprite.material.opacity = 1;
+    const scl = 0.01 + Math.random() * 0.004;
+    sprite.scale.set(scl, scl, scl);
+
+    const ang = Math.random() * Math.PI * 2;
+    const v = (6 + Math.random() * 6) * intensity;
+    s.vx = Math.cos(ang) * v;
+    s.vz = Math.sin(ang) * v;
+    s.vy = 2 + Math.random() * 3;
+    s.life = 0.4;
+    s.maxLife = 0.4;
+  }
+
+  // Smoke puffs — dense grey cloud for impact silhouette
+  const smokeCount = 3;
+  for (let i = 0; i < smokeCount; i++) {
+    const s = smokeState[smokeIndex];
+    const sprite = smokeSprites[smokeIndex];
+    smokeIndex = (smokeIndex + 1) % SMOKE_POOL_SIZE;
+
+    sprite.position.set(
+      wx + (Math.random() - 0.5) * 0.3,
+      0.3,
+      wz + (Math.random() - 0.5) * 0.3,
+    );
+    sprite.visible = true;
+    sprite.material.opacity = 0.6;
+    sprite.scale.set(0.025, 0.025, 0.025);
+
+    s.vx = (Math.random() - 0.5) * 2;
+    s.vz = (Math.random() - 0.5) * 2;
+    s.vy = 0.8 + Math.random() * 0.6;
+    s.life = 0.6;
+    s.maxLife = 0.6;
   }
 }
 

@@ -262,7 +262,8 @@ html, body {
   grid-template-columns: repeat(2, 1fr);
   gap: 1.4cqh;
   padding: 0 2cqh;
-  max-width: 36cqw;
+  max-width: 70cqw;
+  width: 70cqw;
 }
 
 .track-grid { max-height: 60cqh; overflow-y: auto; }

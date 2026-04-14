@@ -1,5 +1,5 @@
 // Identity
-export const VERSION = 'v0.2.3';
+export const VERSION = 'v0.3.0';
 
 // Display
 export const GAME_W = 1080;

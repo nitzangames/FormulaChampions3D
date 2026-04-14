@@ -31,7 +31,7 @@ import { mpOpenLobby, mpGetRoom, mpIsHost, mpLocalUserId, mpShowHostPicker, mpSh
 import { initChaseCamera, updateChaseCamera, triggerShake, resetChaseCamera } from './camera3d.js';
 import { buildTrack as buildTrack3D, disposeTrack, setStartLights } from './track-builder.js';
 import { buildCarModel, updateCarModel } from './car-models.js';
-import { initEffects, updateEffects, spawnSmoke, spawnSparks, addSkidmark, clearEffects } from './effects3d.js';
+import { initEffects, updateEffects, spawnSmoke, spawnSparks, spawnImpactBurst, addSkidmark, clearEffects } from './effects3d.js';
 import { buildScenery, disposeScenery } from './scenery.js';
 
 // ── State ───────────────────────────────────────────────────────────────────
@@ -186,11 +186,16 @@ function initTrack(seed) {
 
   world = new World({ gravity: new Vec2(0, 0), fixedDt: FIXED_DT });
 
+  // Throttle per-pair car-vs-car bursts so continuous contact doesn't spam.
+  const carContactLastBurst = new Map();
+  const CAR_BURST_COOLDOWN_MS = 300;
+
   world.onCollision = (bodyA, bodyB, contact) => {
     const udA = bodyA.userData;
     const udB = bodyB.userData;
     if (!udA || !udB) return;
 
+    // Car-vs-wall: existing crash / bump flow.
     let carBody = null;
     if (udA.type === 'car' && udB.type === 'wall') carBody = bodyA;
     else if (udB.type === 'car' && udA.type === 'wall') carBody = bodyB;
@@ -201,7 +206,7 @@ function initTrack(seed) {
         const wasCrashed = car.crashed;
         car.onWallCollision(contact);
         if (!wasCrashed && car.crashed) {
-          spawnSparks(car.x, car.y);
+          spawnImpactBurst(car.x, car.y, 1.0);
           if (car === cars[0]) {
             playCrash();
             hapticThump();
@@ -212,12 +217,38 @@ function initTrack(seed) {
           playBumpSound();
         }
       }
+      return;
+    }
+
+    // Car-vs-car: spawn impact burst at midpoint (throttled per pair).
+    if (udA.type === 'car' && udB.type === 'car') {
+      const carA = cars.find(c => c.body === bodyA);
+      const carB = cars.find(c => c.body === bodyB);
+      if (!carA || !carB) return;
+      const idxA = cars.indexOf(carA);
+      const idxB = cars.indexOf(carB);
+      const key = idxA < idxB ? `${idxA}-${idxB}` : `${idxB}-${idxA}`;
+      const now = performance.now();
+      const last = carContactLastBurst.get(key) || 0;
+      if (now - last < CAR_BURST_COOLDOWN_MS) return;
+      carContactLastBurst.set(key, now);
+
+      const mx = (carA.x + carB.x) * 0.5;
+      const my = (carA.y + carB.y) * 0.5;
+      spawnImpactBurst(mx, my, 1.0);
+
+      // Haptic + shake only if local player was involved.
+      if (carA === cars[0] || carB === cars[0]) {
+        playBumpSound();
+        hapticThump();
+        triggerShake(0.2);
+      }
     }
   };
 
   createWallBodies(world, walls);
   buildTrack3D(getScene(), centerLine, walls, track);
-  buildScenery(getScene(), centerLine, walls, track);
+  buildScenery(getScene(), centerLine, walls, track, seed);
 }
 
 // ── Car spawning ────────────────────────────────────────────────────────────

@@ -2,7 +2,9 @@ import { PX_TO_WORLD, TILE } from './constants.js';
 
 let sceneryGroup = null;
 
-function buildTree() {
+// ── Tree builders ───────────────────────────────────────────────────────────
+
+function buildSpruce() {
   const group = new THREE.Group();
 
   const trunkGeo = new THREE.CylinderGeometry(0.12, 0.18, 1.2, 5);
@@ -14,14 +16,12 @@ function buildTree() {
 
   const foliageMat = new THREE.MeshLambertMaterial({ color: 0x228833 });
 
-  const bottomGeo = new THREE.ConeGeometry(0.9, 1.2, 5);
-  const bottom = new THREE.Mesh(bottomGeo, foliageMat);
+  const bottom = new THREE.Mesh(new THREE.ConeGeometry(0.9, 1.2, 5), foliageMat);
   bottom.position.y = 1.6;
   bottom.castShadow = true;
   group.add(bottom);
 
-  const topGeo = new THREE.ConeGeometry(0.6, 0.9, 5);
-  const top = new THREE.Mesh(topGeo, foliageMat);
+  const top = new THREE.Mesh(new THREE.ConeGeometry(0.6, 0.9, 5), foliageMat);
   top.position.y = 2.4;
   top.castShadow = true;
   group.add(top);
@@ -29,22 +29,379 @@ function buildTree() {
   return group;
 }
 
+function buildPine() {
+  // Tall, narrow conifer (alpine feel).
+  const group = new THREE.Group();
+
+  const trunkGeo = new THREE.CylinderGeometry(0.08, 0.14, 1.6, 5);
+  const trunkMat = new THREE.MeshLambertMaterial({ color: 0x6b4a1f });
+  const trunk = new THREE.Mesh(trunkGeo, trunkMat);
+  trunk.position.y = 0.8;
+  trunk.castShadow = true;
+  group.add(trunk);
+
+  const foliageMat = new THREE.MeshLambertMaterial({ color: 0x1b5c2f });
+  const foliage = new THREE.Mesh(new THREE.ConeGeometry(0.55, 3.0, 5), foliageMat);
+  foliage.position.y = 2.8;
+  foliage.castShadow = true;
+  group.add(foliage);
+
+  return group;
+}
+
+function buildPalm() {
+  // Tropical palm with 3D arched fronds. Each frond is a drooping strip of
+  // triangles that narrows toward the tip — reads like a real palm from any
+  // camera angle (the old crossed-planes version looked flat at close range).
+  const group = new THREE.Group();
+
+  const trunkMat = new THREE.MeshLambertMaterial({ color: 0x886a3a });
+  const trunk = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.09, 0.16, 2.8, 6),
+    trunkMat,
+  );
+  trunk.position.y = 1.4;
+  trunk.castShadow = true;
+  group.add(trunk);
+
+  // Trunk rings (substitute for bark texture)
+  const ringMat = new THREE.MeshLambertMaterial({ color: 0x5a4528 });
+  for (let i = 0; i < 6; i++) {
+    const ring = new THREE.Mesh(
+      new THREE.TorusGeometry(0.1, 0.02, 4, 8),
+      ringMat,
+    );
+    ring.rotation.x = Math.PI / 2;
+    ring.position.y = 0.3 + i * 0.4;
+    group.add(ring);
+  }
+
+  const frondMat = new THREE.MeshLambertMaterial({ color: 0x2a9a42, side: THREE.DoubleSide });
+  const FRONDS = 9;
+  const SEGS = 4;
+  const FRONDLEN = 1.3;
+  for (let i = 0; i < FRONDS; i++) {
+    const a = (i / FRONDS) * Math.PI * 2;
+    const yaw = new THREE.Matrix4().makeRotationY(a);
+
+    const verts = [];
+    for (let s = 0; s <= SEGS; s++) {
+      const t = s / SEGS;
+      const r = t * FRONDLEN;
+      // Arc: droops downward with quadratic falloff, narrows toward tip.
+      const y = 2.8 + 0.2 - t * t * 1.2;
+      const halfW = 0.2 * (1 - t * 0.7);
+      verts.push(new THREE.Vector3(r, y, -halfW).applyMatrix4(yaw));
+      verts.push(new THREE.Vector3(r, y,  halfW).applyMatrix4(yaw));
+    }
+    const geo = new THREE.BufferGeometry();
+    const pos = [];
+    const idx = [];
+    for (const v of verts) pos.push(v.x, v.y, v.z);
+    for (let s = 0; s < SEGS; s++) {
+      const a0 = s * 2, a1 = a0 + 1, a2 = a0 + 2, a3 = a0 + 3;
+      idx.push(a0, a1, a2, a1, a3, a2);
+    }
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    geo.setIndex(idx);
+    geo.computeVertexNormals();
+    const m = new THREE.Mesh(geo, frondMat);
+    m.castShadow = true;
+    group.add(m);
+  }
+
+  const cocoMat = new THREE.MeshLambertMaterial({ color: 0x3a2a18 });
+  for (let i = 0; i < 4; i++) {
+    const a = (i / 4) * Math.PI * 2;
+    const c = new THREE.Mesh(new THREE.SphereGeometry(0.1, 6, 5), cocoMat);
+    c.position.set(Math.cos(a) * 0.16, 2.75, Math.sin(a) * 0.16);
+    group.add(c);
+  }
+
+  return group;
+}
+
+function buildBroadleaf() {
+  // Round deciduous tree — clustered icosahedron "blobs" form a puffy crown.
+  const group = new THREE.Group();
+
+  const trunk = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.14, 0.22, 1.2, 6),
+    new THREE.MeshLambertMaterial({ color: 0x5a3a1a }),
+  );
+  trunk.position.y = 0.6;
+  trunk.castShadow = true;
+  group.add(trunk);
+
+  const fol = new THREE.MeshLambertMaterial({ color: 0x3ba046 });
+  const blobs = [
+    { y: 1.75, r: 0.95, x: 0,     z: 0     },
+    { y: 2.05, r: 0.75, x: 0.35,  z: 0     },
+    { y: 2.05, r: 0.75, x: -0.35, z: 0     },
+    { y: 2.05, r: 0.75, x: 0,     z: 0.4   },
+    { y: 2.3,  r: 0.65, x: 0,     z: -0.25 },
+    { y: 2.5,  r: 0.55, x: 0.15,  z: 0.15  },
+  ];
+  for (const b of blobs) {
+    const sphere = new THREE.Mesh(
+      new THREE.IcosahedronGeometry(b.r, 0),
+      fol,
+    );
+    sphere.position.set(b.x, b.y, b.z);
+    sphere.castShadow = true;
+    group.add(sphere);
+  }
+  return group;
+}
+
+function buildCactus() {
+  // Saguaro cactus — three-arm silhouette with ribbed trunk.
+  const group = new THREE.Group();
+  const mat = new THREE.MeshLambertMaterial({ color: 0x3a7a3a });
+  const darkMat = new THREE.MeshLambertMaterial({ color: 0x2c5a2c });
+
+  const trunk = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.28, 0.32, 2.6, 8),
+    mat,
+  );
+  trunk.position.y = 1.3;
+  trunk.castShadow = true;
+  group.add(trunk);
+
+  const cap = new THREE.Mesh(
+    new THREE.SphereGeometry(0.28, 8, 6, 0, Math.PI * 2, 0, Math.PI / 2),
+    mat,
+  );
+  cap.position.y = 2.6;
+  group.add(cap);
+
+  // Left arm (horizontal elbow + vertical limb + cap)
+  const armLh = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.18, 0.5, 8), mat);
+  armLh.rotation.z = Math.PI / 2;
+  armLh.position.set(-0.35, 1.4, 0);
+  group.add(armLh);
+  const armLv = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.17, 1.1, 8), mat);
+  armLv.position.set(-0.65, 1.9, 0);
+  armLv.castShadow = true;
+  group.add(armLv);
+  const armLc = new THREE.Mesh(
+    new THREE.SphereGeometry(0.16, 8, 6, 0, Math.PI * 2, 0, Math.PI / 2),
+    mat,
+  );
+  armLc.position.set(-0.65, 2.45, 0);
+  group.add(armLc);
+
+  // Right arm (shorter)
+  const armRh = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.17, 0.45, 8), mat);
+  armRh.rotation.z = -Math.PI / 2;
+  armRh.position.set(0.33, 1.7, 0);
+  group.add(armRh);
+  const armRv = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.16, 0.7, 8), mat);
+  armRv.position.set(0.58, 2.1, 0);
+  armRv.castShadow = true;
+  group.add(armRv);
+  const armRc = new THREE.Mesh(
+    new THREE.SphereGeometry(0.15, 8, 6, 0, Math.PI * 2, 0, Math.PI / 2),
+    mat,
+  );
+  armRc.position.set(0.58, 2.45, 0);
+  group.add(armRc);
+
+  // Vertical ribs around trunk
+  for (let i = 0; i < 6; i++) {
+    const a = (i / 6) * Math.PI * 2;
+    const rib = new THREE.Mesh(new THREE.BoxGeometry(0.04, 2.5, 0.02), darkMat);
+    rib.position.set(Math.cos(a) * 0.3, 1.3, Math.sin(a) * 0.3);
+    group.add(rib);
+  }
+  return group;
+}
+
+function buildBirch() {
+  // Tall slender birch — white trunk with black dashes, sparse light-green crown.
+  const group = new THREE.Group();
+
+  const trunkMat = new THREE.MeshLambertMaterial({ color: 0xf0ece2 });
+  const trunk = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.08, 0.11, 2.4, 6),
+    trunkMat,
+  );
+  trunk.position.y = 1.2;
+  trunk.castShadow = true;
+  group.add(trunk);
+
+  // Black dashes on the trunk (birch marks)
+  const markMat = new THREE.MeshLambertMaterial({ color: 0x1a1a1a });
+  for (let i = 0; i < 8; i++) {
+    const mark = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.03, 0.02), markMat);
+    const a = Math.random() * Math.PI * 2;
+    mark.position.set(Math.cos(a) * 0.105, 0.3 + i * 0.28, Math.sin(a) * 0.105);
+    mark.rotation.y = a;
+    group.add(mark);
+  }
+
+  const fol = new THREE.MeshLambertMaterial({ color: 0x9ac93a });
+  const blobs = [
+    { y: 2.4, r: 0.55, x: 0,    z: 0    },
+    { y: 2.65, r: 0.4, x: 0.25, z: 0.1  },
+    { y: 2.65, r: 0.4, x: -0.2, z: -0.1 },
+    { y: 2.85, r: 0.35, x: 0.05, z: 0.15 },
+  ];
+  for (const b of blobs) {
+    const s = new THREE.Mesh(new THREE.IcosahedronGeometry(b.r, 0), fol);
+    s.position.set(b.x, b.y, b.z);
+    s.castShadow = true;
+    group.add(s);
+  }
+  return group;
+}
+
+function buildCherryBlossom() {
+  // Round pink crown (spring theme).
+  const group = new THREE.Group();
+
+  const trunk = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.11, 0.16, 1.0, 6),
+    new THREE.MeshLambertMaterial({ color: 0x4a3020 }),
+  );
+  trunk.position.y = 0.5;
+  trunk.castShadow = true;
+  group.add(trunk);
+
+  const pink = new THREE.MeshLambertMaterial({ color: 0xf5a9c3 });
+  const pinkDeep = new THREE.MeshLambertMaterial({ color: 0xe77fa8 });
+  const blobs = [
+    { y: 1.5,  r: 0.85, x: 0,     z: 0,     mat: pink     },
+    { y: 1.75, r: 0.7,  x: 0.4,   z: 0.05,  mat: pinkDeep },
+    { y: 1.75, r: 0.7,  x: -0.4,  z: -0.05, mat: pink     },
+    { y: 1.8,  r: 0.65, x: 0.05,  z: 0.45,  mat: pinkDeep },
+    { y: 1.95, r: 0.55, x: 0,     z: -0.3,  mat: pink     },
+    { y: 2.1,  r: 0.45, x: 0.15,  z: 0.1,   mat: pinkDeep },
+  ];
+  for (const b of blobs) {
+    const s = new THREE.Mesh(new THREE.IcosahedronGeometry(b.r, 0), b.mat);
+    s.position.set(b.x, b.y, b.z);
+    s.castShadow = true;
+    group.add(s);
+  }
+  return group;
+}
+
+function buildAutumnMaple() {
+  // Round orange/red crown (autumn theme).
+  const group = new THREE.Group();
+
+  const trunk = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.13, 0.2, 1.1, 6),
+    new THREE.MeshLambertMaterial({ color: 0x4a2e14 }),
+  );
+  trunk.position.y = 0.55;
+  trunk.castShadow = true;
+  group.add(trunk);
+
+  const red = new THREE.MeshLambertMaterial({ color: 0xd9481f });
+  const orange = new THREE.MeshLambertMaterial({ color: 0xe88020 });
+  const yellow = new THREE.MeshLambertMaterial({ color: 0xedb24b });
+  const blobs = [
+    { y: 1.65, r: 0.95, x: 0,     z: 0,     mat: red    },
+    { y: 1.95, r: 0.75, x: 0.4,   z: 0.0,   mat: orange },
+    { y: 1.95, r: 0.75, x: -0.4,  z: 0.0,   mat: orange },
+    { y: 1.95, r: 0.75, x: 0.0,   z: 0.45,  mat: yellow },
+    { y: 2.15, r: 0.6,  x: 0.05,  z: -0.3,  mat: red    },
+    { y: 2.4,  r: 0.5,  x: 0.15,  z: 0.1,   mat: orange },
+  ];
+  for (const b of blobs) {
+    const s = new THREE.Mesh(new THREE.IcosahedronGeometry(b.r, 0), b.mat);
+    s.position.set(b.x, b.y, b.z);
+    s.castShadow = true;
+    group.add(s);
+  }
+  return group;
+}
+
+function buildBamboo() {
+  // Cluster of 5-7 tall thin vertical stalks.
+  const group = new THREE.Group();
+
+  const stalkMat = new THREE.MeshLambertMaterial({ color: 0x5a9a3a });
+  const jointMat = new THREE.MeshLambertMaterial({ color: 0x3a7a28 });
+  const leafMat = new THREE.MeshLambertMaterial({ color: 0x88c050, side: THREE.DoubleSide });
+
+  const STALKS = 6;
+  for (let i = 0; i < STALKS; i++) {
+    const a = (i / STALKS) * Math.PI * 2 + Math.random() * 0.3;
+    const r = 0.15 + Math.random() * 0.25;
+    const x = Math.cos(a) * r;
+    const z = Math.sin(a) * r;
+    const height = 2.4 + Math.random() * 1.2;
+
+    const stalk = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.06, 0.07, height, 5),
+      stalkMat,
+    );
+    stalk.position.set(x, height / 2, z);
+    stalk.castShadow = true;
+    group.add(stalk);
+
+    // Joint rings along the stalk
+    const joints = Math.floor(height / 0.5);
+    for (let j = 1; j <= joints; j++) {
+      const ring = new THREE.Mesh(
+        new THREE.TorusGeometry(0.075, 0.015, 4, 8),
+        jointMat,
+      );
+      ring.rotation.x = Math.PI / 2;
+      ring.position.set(x, j * 0.5, z);
+      group.add(ring);
+    }
+
+    // Leaf tufts near the top
+    for (let l = 0; l < 3; l++) {
+      const leaf = new THREE.Mesh(new THREE.PlaneGeometry(0.35, 0.08), leafMat);
+      const la = Math.random() * Math.PI * 2;
+      leaf.position.set(x + Math.cos(la) * 0.12, height - 0.2 - l * 0.25, z + Math.sin(la) * 0.12);
+      leaf.rotation.y = la;
+      leaf.rotation.z = -0.2;
+      group.add(leaf);
+    }
+  }
+  return group;
+}
+
+const TREE_BUILDERS = [
+  buildSpruce, buildPine, buildPalm, buildBroadleaf, buildCactus,
+  buildBirch, buildCherryBlossom, buildAutumnMaple, buildBamboo,
+];
+
+// Seed-derived PRNG (mulberry32) for deterministic per-track tree mix.
+function mulberry32(seed) {
+  let a = (seed | 0) >>> 0;
+  return function() {
+    a = (a + 0x6D2B79F5) >>> 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+// ── buildScenery ────────────────────────────────────────────────────────────
+
 /**
- * Place trees along both sides of the track, offset from the actual wall paths.
- * Skips any position that falls inside a track tile (prevents trees on
- * adjacent track sections).
- * @param {THREE.Scene} scene
- * @param {{x:number,y:number}[]} centerLine - 2D pixel centerline
- * @param {{left:{x:number,y:number}[], right:{x:number,y:number}[]}} walls
- * @param {object} track - track data with tiles array (for tile occupancy check)
+ * Place trees along both sides of the track. Each track picks a single
+ * tree type (seed-deterministic); individual trees get randomized
+ * per-instance scale + non-uniform height/width stretch so no two look
+ * identical.
  */
-export function buildScenery(scene, centerLine, walls, track) {
+export function buildScenery(scene, centerLine, walls, track, seed) {
   if (sceneryGroup) disposeScenery();
 
   sceneryGroup = new THREE.Group();
   scene.add(sceneryGroup);
 
-  // Build a set of occupied grid cells for fast lookup
+  const rng = mulberry32(typeof seed === 'number' ? seed : (Math.random() * 0xffffffff) | 0);
+  const treeBuilder = TREE_BUILDERS[Math.floor(rng() * TREE_BUILDERS.length)];
+
   const occupied = new Set();
   if (track && track.tiles) {
     for (const tile of track.tiles) {
@@ -56,12 +413,9 @@ export function buildScenery(scene, centerLine, walls, track) {
     }
   }
 
-  // Convert a world-unit position back to grid cell coordinates
   function worldToGridCell(wx, wz) {
     const px = wx / PX_TO_WORLD;
     const py = wz / PX_TO_WORLD;
-    // Tile grid: each cell is TILE pixels. Tiles center at (gx*TILE + TILE/2, gy*TILE + TILE/2)
-    // So cell gx = floor(px / TILE), gy = floor(py / TILE)
     return { x: Math.floor(px / TILE), y: Math.floor(py / TILE) };
   }
 
@@ -72,28 +426,30 @@ export function buildScenery(scene, centerLine, walls, track) {
 
   function tryPlaceTree(wx, wz) {
     if (isInTrack(wx, wz)) return;
-    const tree = buildTree();
+    const tree = treeBuilder();
     tree.position.x = wx;
     tree.position.z = wz;
-    tree.rotation.y = Math.random() * Math.PI * 2;
-    const s = 0.8 + Math.random() * 0.6;
-    tree.scale.set(s, s, s);
+    tree.rotation.y = rng() * Math.PI * 2;
+
+    // Non-uniform scale: base * per-axis jitter so heights + widths vary
+    // independently. Trees end up visibly different even within one theme.
+    const base = 0.6 + rng() * 1.0;           // 0.6 – 1.6
+    const heightJitter = 0.8 + rng() * 0.6;   // 0.8 – 1.4 vertical stretch
+    const widthJitter  = 0.85 + rng() * 0.3;  // 0.85 – 1.15 horizontal
+    tree.scale.set(base * widthJitter, base * heightJitter, base * widthJitter);
     sceneryGroup.add(tree);
   }
 
   const n = centerLine.length;
   const step = 8;
   for (let i = 0; i < n; i += step) {
-    if (Math.random() > 0.6) continue;
-
+    if (rng() > 0.6) continue;
     const li = Math.min(i, walls.left.length - 1);
     const ri = Math.min(i, walls.right.length - 1);
     const ci = centerLine[i];
-
     const lw = walls.left[li];
     const rw = walls.right[ri];
 
-    // Outward direction from centerline to left wall (normalized)
     const ldx = (lw.x - ci.x) * PX_TO_WORLD;
     const ldz = (lw.y - ci.y) * PX_TO_WORLD;
     const lLen = Math.sqrt(ldx * ldx + ldz * ldz) || 1;
@@ -106,18 +462,143 @@ export function buildScenery(scene, centerLine, walls, track) {
     const rNx = rdx / rLen;
     const rNz = rdz / rLen;
 
-    // Left-side tree
-    const d1 = 2 + Math.random() * 6;
-    const lx = lw.x * PX_TO_WORLD + lNx * d1;
-    const lz = lw.y * PX_TO_WORLD + lNz * d1;
-    tryPlaceTree(lx, lz);
-
-    // Right-side tree
-    const d2 = 2 + Math.random() * 6;
-    const rx = rw.x * PX_TO_WORLD + rNx * d2;
-    const rz = rw.y * PX_TO_WORLD + rNz * d2;
-    tryPlaceTree(rx, rz);
+    const d1 = 2 + rng() * 6;
+    tryPlaceTree(lw.x * PX_TO_WORLD + lNx * d1, lw.y * PX_TO_WORLD + lNz * d1);
+    const d2 = 2 + rng() * 6;
+    tryPlaceTree(rw.x * PX_TO_WORLD + rNx * d2, rw.y * PX_TO_WORLD + rNz * d2);
   }
+
+  // ── Grandstands on long straights ─────────────────────────────────────
+  buildGrandstands(centerLine, walls, isInTrack, rng);
+}
+
+// ── Grandstand builder + placement ──────────────────────────────────────────
+
+function buildGrandstand(length, rng) {
+  const group = new THREE.Group();
+  const structureMat = new THREE.MeshLambertMaterial({ color: 0x5a6470 });
+  const roofMat = new THREE.MeshLambertMaterial({ color: 0x2a3340 });
+
+  const TIERS = 5;
+  const TIER_H = 0.4;
+  const TIER_D = 0.45;
+
+  for (let i = 0; i < TIERS; i++) {
+    const tier = new THREE.Mesh(
+      new THREE.BoxGeometry(length, TIER_H, TIER_D),
+      structureMat,
+    );
+    tier.position.set(0, TIER_H / 2 + i * TIER_H, -i * TIER_D);
+    tier.castShadow = true;
+    tier.receiveShadow = true;
+    group.add(tier);
+  }
+
+  const crowdColors = [0xff5722, 0xffeb3b, 0x4caf50, 0x2196f3, 0xe91e63, 0xffffff, 0x9c27b0];
+  for (let i = 0; i < TIERS; i++) {
+    const rowY = TIER_H + i * TIER_H + 0.12;
+    const rowZ = -i * TIER_D;
+    const heads = Math.floor(length / 0.25);
+    for (let h = 0; h < heads; h++) {
+      if (rng() < 0.2) continue;
+      const color = crowdColors[Math.floor(rng() * crowdColors.length)];
+      const head = new THREE.Mesh(
+        new THREE.BoxGeometry(0.12, 0.22, 0.12),
+        new THREE.MeshLambertMaterial({ color }),
+      );
+      head.position.set(-length / 2 + 0.15 + h * 0.25, rowY, rowZ + TIER_D / 2 - 0.02);
+      group.add(head);
+    }
+  }
+
+  const totalDepth = TIERS * TIER_D + 0.2;
+  const roof = new THREE.Mesh(
+    new THREE.BoxGeometry(length, 0.1, totalDepth),
+    roofMat,
+  );
+  roof.position.set(0, TIERS * TIER_H + 0.8, -totalDepth / 2 + 0.4);
+  roof.castShadow = true;
+  group.add(roof);
+
+  const postMat = new THREE.MeshLambertMaterial({ color: 0x3a434f });
+  for (const sx of [-1, 1]) {
+    const post = new THREE.Mesh(
+      new THREE.BoxGeometry(0.1, TIERS * TIER_H + 0.8, 0.1),
+      postMat,
+    );
+    post.position.set(sx * (length / 2 - 0.1), (TIERS * TIER_H + 0.8) / 2, -totalDepth + 0.4);
+    group.add(post);
+  }
+
+  return group;
+}
+
+function buildGrandstands(centerLine, walls, isInTrack, rng) {
+  const n = centerLine.length;
+  const STAND_MIN_LEN = 30;
+  const STAND_CURV_MAX = 0.25;
+  const STAND_SPACING = 40;
+
+  let runStart = 0;
+  let runCurv = 0;
+  let lastStandIdx = -STAND_SPACING;
+
+  function placeGrandstand(startIdx, endIdx) {
+    if (endIdx - startIdx < STAND_MIN_LEN) return;
+    if (startIdx - lastStandIdx < STAND_SPACING) return;
+
+    const mid = Math.floor((startIdx + endIdx) / 2);
+    const lw = walls.left[Math.min(mid, walls.left.length - 1)];
+    const rw = walls.right[Math.min(mid, walls.right.length - 1)];
+    if (!lw || !rw) return;
+
+    const useLeft = rng() < 0.5;
+    const wall = useLeft ? lw : rw;
+    const other = useLeft ? rw : lw;
+
+    const dx = wall.x - other.x;
+    const dy = wall.y - other.y;
+    const len = Math.sqrt(dx * dx + dy * dy) || 1;
+    const nx = dx / len, ny = dy / len;
+    const OFFSET_PX = 120;
+
+    const wx = (wall.x + nx * OFFSET_PX) * PX_TO_WORLD;
+    const wz = (wall.y + ny * OFFSET_PX) * PX_TO_WORLD;
+    if (isInTrack(wx, wz)) return;
+
+    const aPt = centerLine[startIdx];
+    const bPt = centerLine[endIdx];
+    const trackAng = Math.atan2(bPt.y - aPt.y, bPt.x - aPt.x);
+
+    const lengthPx = Math.hypot(bPt.x - aPt.x, bPt.y - aPt.y);
+    const lengthWorld = Math.min(lengthPx * PX_TO_WORLD * 0.6, 12);
+
+    const stand = buildGrandstand(Math.max(6, lengthWorld), rng);
+    stand.position.set(wx, 0, wz);
+    const faceAng = -trackAng + (useLeft ? Math.PI : 0);
+    stand.rotation.y = faceAng;
+    sceneryGroup.add(stand);
+    lastStandIdx = endIdx;
+  }
+
+  for (let i = 1; i < n; i++) {
+    const a = centerLine[i - 1];
+    const b = centerLine[i];
+    const c = centerLine[Math.min(i + 1, n - 1)];
+    const ang1 = Math.atan2(b.y - a.y, b.x - a.x);
+    const ang2 = Math.atan2(c.y - b.y, c.x - b.x);
+    let d = ang2 - ang1;
+    while (d > Math.PI) d -= 2 * Math.PI;
+    while (d < -Math.PI) d += 2 * Math.PI;
+    runCurv += Math.abs(d);
+
+    if (runCurv > STAND_CURV_MAX) {
+      placeGrandstand(runStart, i - 1);
+      runStart = i;
+      runCurv = 0;
+    }
+  }
+  placeGrandstand(runStart, n - 1);
 }
 
 export function disposeScenery() {

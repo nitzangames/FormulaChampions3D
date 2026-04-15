@@ -922,6 +922,11 @@ function setupButtons() {
   document.getElementById('btn-pause').addEventListener('click', () => {
     playClick(); hapticTap();
     gameState.pause();
+    // Label the quit button by destination (career vs main menu).
+    const quitBtn = document.getElementById('btn-quit');
+    if (quitBtn) {
+      quitBtn.textContent = raceMode === 'career' ? 'QUIT TO CAREER' : 'QUIT TO MENU';
+    }
     showScreen('pause');
     updateToggles();
   });
@@ -944,15 +949,20 @@ function setupButtons() {
     }
   });
 
-  // Pause: Quit
+  // Pause: Quit — destination depends on race mode.
   document.getElementById('btn-quit').addEventListener('click', () => {
     playClick(); hapticTap();
     clearEffects();
     gameState.reset();
-    if (raceMode === 'quick') {
-      showTitle();
-    } else {
+    if (raceMode === 'career') {
       showCareerHome();
+    } else {
+      // quick race + multiplayer both return to title. MP also leaves room.
+      if (raceMode === 'multiplayer') {
+        const r = mpGetRoom();
+        if (r) r.leave();
+      }
+      showTitle();
     }
   });
 

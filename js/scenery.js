@@ -703,34 +703,7 @@ function buildBush() {
   return group;
 }
 
-function buildMushroom() {
-  const group = new THREE.Group();
-  const stem = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.06, 0.08, 0.25, 5),
-    new THREE.MeshLambertMaterial({ color: 0xf0ead2 }),
-  );
-  stem.position.y = 0.125;
-  group.add(stem);
-  const cap = new THREE.Mesh(
-    new THREE.SphereGeometry(0.18, 8, 6, 0, Math.PI * 2, 0, Math.PI / 2),
-    new THREE.MeshLambertMaterial({ color: 0xd02828 }),
-  );
-  cap.position.y = 0.25;
-  cap.castShadow = true;
-  group.add(cap);
-  const spotMat = new THREE.MeshLambertMaterial({ color: 0xffffff });
-  for (let i = 0; i < 5; i++) {
-    const a = Math.random() * Math.PI * 2;
-    const r = 0.05 + Math.random() * 0.1;
-    const spot = new THREE.Mesh(new THREE.SphereGeometry(0.03, 5, 4), spotMat);
-    spot.position.set(Math.cos(a) * r, 0.34, Math.sin(a) * r);
-    group.add(spot);
-  }
-  return group;
-}
-
-const UNIVERSAL_DECOR = [buildSmallRock, buildMediumRock, buildGrassTuft];
-const FEATURED_DECOR  = [buildBush, buildMushroom];
+const DECOR_BUILDERS = [buildSmallRock, buildMediumRock, buildGrassTuft, buildBush];
 
 // Seed-derived PRNG (mulberry32) for deterministic per-track tree mix.
 function mulberry32(seed) {
@@ -760,9 +733,6 @@ export function buildScenery(scene, centerLine, walls, track, seed) {
 
   const rng = mulberry32(typeof seed === 'number' ? seed : (Math.random() * 0xffffffff) | 0);
   const treeBuilder = TREE_BUILDERS[Math.floor(rng() * TREE_BUILDERS.length)];
-  // Universal rocks + grass everywhere; plus ONE seed-picked featured decor.
-  const featured = FEATURED_DECOR[Math.floor(rng() * FEATURED_DECOR.length)];
-  const decorBuilders = [...UNIVERSAL_DECOR, featured];
 
   const occupied = new Set();
   if (track && track.tiles) {
@@ -834,7 +804,7 @@ export function buildScenery(scene, centerLine, walls, track, seed) {
   // Tighter step than trees; placed close to the wall on either side.
   function tryPlaceDecor(wx, wz) {
     if (isInTrack(wx, wz)) return;
-    const builder = decorBuilders[Math.floor(rng() * decorBuilders.length)];
+    const builder = DECOR_BUILDERS[Math.floor(rng() * DECOR_BUILDERS.length)];
     const decor = builder();
     decor.position.set(wx, 0, wz);
     decor.rotation.y = rng() * Math.PI * 2;
@@ -870,19 +840,24 @@ export function buildScenery(scene, centerLine, walls, track, seed) {
   }
 
   // ── Grandstands on long straights ─────────────────────────────────────
-  buildGrandstands(centerLine, walls, isInTrack, rng);
+  buildGrandstands(centerLine, walls, occupied, rng, track);
+
+  // ── Flag towers at tight corners ──────────────────────────────────────
+  buildFlagTowers(centerLine, walls, isInTrack, rng);
 }
 
 // ── Grandstand builder + placement ──────────────────────────────────────────
 
 function buildGrandstand(length, rng) {
+  // Mega stand: 7 tiers, taller crowd, a banner across the top front,
+  // and a gap-separated roof for visibility from the race camera.
   const group = new THREE.Group();
-  const structureMat = new THREE.MeshLambertMaterial({ color: 0x5a6470 });
-  const roofMat = new THREE.MeshLambertMaterial({ color: 0x2a3340 });
+  const structureMat = new THREE.MeshLambertMaterial({ color: 0x505866 });
+  const roofMat = new THREE.MeshLambertMaterial({ color: 0x262d38 });
 
-  const TIERS = 5;
-  const TIER_H = 0.4;
-  const TIER_D = 0.45;
+  const TIERS = 7;
+  const TIER_H = 0.55;
+  const TIER_D = 0.5;
 
   for (let i = 0; i < TIERS; i++) {
     const tier = new THREE.Mesh(
@@ -895,63 +870,252 @@ function buildGrandstand(length, rng) {
     group.add(tier);
   }
 
-  const crowdColors = [0xff5722, 0xffeb3b, 0x4caf50, 0x2196f3, 0xe91e63, 0xffffff, 0x9c27b0];
+  // Crowd heads — taller and denser than before.
+  const crowdColors = [0xff5722, 0xffeb3b, 0x4caf50, 0x2196f3, 0xe91e63, 0xffffff, 0x9c27b0, 0xff9800];
   for (let i = 0; i < TIERS; i++) {
-    const rowY = TIER_H + i * TIER_H + 0.12;
+    const rowY = TIER_H + i * TIER_H + 0.18;
     const rowZ = -i * TIER_D;
-    const heads = Math.floor(length / 0.25);
+    const heads = Math.floor(length / 0.22);
     for (let h = 0; h < heads; h++) {
-      if (rng() < 0.2) continue;
+      if (rng() < 0.15) continue;
       const color = crowdColors[Math.floor(rng() * crowdColors.length)];
       const head = new THREE.Mesh(
-        new THREE.BoxGeometry(0.12, 0.22, 0.12),
+        new THREE.BoxGeometry(0.16, 0.34, 0.16),
         new THREE.MeshLambertMaterial({ color }),
       );
-      head.position.set(-length / 2 + 0.15 + h * 0.25, rowY, rowZ + TIER_D / 2 - 0.02);
+      head.position.set(-length / 2 + 0.12 + h * 0.22, rowY, rowZ + TIER_D / 2 - 0.02);
       group.add(head);
     }
   }
 
-  const totalDepth = TIERS * TIER_D + 0.2;
+  // Roof — supported by four posts (two front, two back).
+  const totalDepth = TIERS * TIER_D + 0.3;
+  const roofY = TIERS * TIER_H + 1.2;
   const roof = new THREE.Mesh(
-    new THREE.BoxGeometry(length, 0.1, totalDepth),
+    new THREE.BoxGeometry(length + 0.4, 0.15, totalDepth + 0.2),
     roofMat,
   );
-  roof.position.set(0, TIERS * TIER_H + 0.8, -totalDepth / 2 + 0.4);
+  roof.position.set(0, roofY, -totalDepth / 2 + 0.5);
   roof.castShadow = true;
   group.add(roof);
 
-  const postMat = new THREE.MeshLambertMaterial({ color: 0x3a434f });
+  const postMat = new THREE.MeshLambertMaterial({ color: 0x30383f });
   for (const sx of [-1, 1]) {
-    const post = new THREE.Mesh(
-      new THREE.BoxGeometry(0.1, TIERS * TIER_H + 0.8, 0.1),
+    // Front post (near race side)
+    const frontPost = new THREE.Mesh(
+      new THREE.BoxGeometry(0.14, roofY, 0.14),
       postMat,
     );
-    post.position.set(sx * (length / 2 - 0.1), (TIERS * TIER_H + 0.8) / 2, -totalDepth + 0.4);
-    group.add(post);
+    frontPost.position.set(sx * (length / 2 - 0.1), roofY / 2, 0.25);
+    group.add(frontPost);
+    // Back post
+    const backPost = new THREE.Mesh(
+      new THREE.BoxGeometry(0.14, roofY, 0.14),
+      postMat,
+    );
+    backPost.position.set(sx * (length / 2 - 0.1), roofY / 2, -totalDepth + 0.45);
+    group.add(backPost);
+  }
+
+  // Sponsor banner stripe hanging off the front of the roof.
+  const bannerBgMat = new THREE.MeshLambertMaterial({ color: 0xe63946 });
+  const banner = new THREE.Mesh(
+    new THREE.BoxGeometry(length, 0.65, 0.08),
+    bannerBgMat,
+  );
+  banner.position.set(0, roofY - 0.35, 0.35);
+  group.add(banner);
+
+  // White stripe across the banner for contrast
+  const stripeMat = new THREE.MeshLambertMaterial({ color: 0xffffff });
+  const stripe = new THREE.Mesh(
+    new THREE.BoxGeometry(length - 0.2, 0.15, 0.02),
+    stripeMat,
+  );
+  stripe.position.set(0, roofY - 0.35, 0.4);
+  group.add(stripe);
+
+  // Chequered block in the banner center
+  const checkerSize = 0.35;
+  const checkerMat1 = new THREE.MeshLambertMaterial({ color: 0x000000 });
+  const checkerMat2 = new THREE.MeshLambertMaterial({ color: 0xffffff });
+  const checkerCount = 4;
+  for (let r = 0; r < 2; r++) {
+    for (let c = 0; c < checkerCount; c++) {
+      const mat = ((r + c) % 2 === 0) ? checkerMat1 : checkerMat2;
+      const tile = new THREE.Mesh(
+        new THREE.BoxGeometry(checkerSize, checkerSize, 0.02),
+        mat,
+      );
+      tile.position.set(
+        -(checkerCount * checkerSize) / 2 + c * checkerSize + checkerSize / 2,
+        roofY - 0.1 - r * checkerSize,
+        0.42,
+      );
+      group.add(tile);
+    }
   }
 
   return group;
 }
 
-function buildGrandstands(centerLine, walls, isInTrack, rng) {
+function buildFlagTower(flagColor) {
+  // Marshal tower: red-white striped steel trunk, observation booth at top,
+  // flagpole + rectangular flag. ~4.5m tall overall, visible at speed.
+  const group = new THREE.Group();
+
+  const whiteMat = new THREE.MeshLambertMaterial({ color: 0xf0f0f0 });
+  const redMat = new THREE.MeshLambertMaterial({ color: 0xc92a2a });
+  const darkMat = new THREE.MeshLambertMaterial({ color: 0x2a2a33 });
+  const metalMat = new THREE.MeshLambertMaterial({ color: 0x808088 });
+
+  // Base plate
+  const base = new THREE.Mesh(
+    new THREE.BoxGeometry(0.9, 0.12, 0.9),
+    darkMat,
+  );
+  base.position.y = 0.06;
+  group.add(base);
+
+  // Striped trunk: alternating red/white bands built from short cylinders.
+  const TRUNK_H = 3.2;
+  const BAND_H = 0.35;
+  const bands = Math.floor(TRUNK_H / BAND_H);
+  for (let i = 0; i < bands; i++) {
+    const band = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.18, 0.22, BAND_H, 8),
+      i % 2 === 0 ? redMat : whiteMat,
+    );
+    band.position.y = 0.12 + BAND_H / 2 + i * BAND_H;
+    band.castShadow = true;
+    group.add(band);
+  }
+  const trunkTopY = 0.12 + bands * BAND_H;
+
+  // Observation booth — cube with a darker window band.
+  const boothH = 0.8;
+  const boothBody = new THREE.Mesh(
+    new THREE.BoxGeometry(0.95, boothH, 0.95),
+    new THREE.MeshLambertMaterial({ color: 0xf5f0e2 }),
+  );
+  boothBody.position.y = trunkTopY + boothH / 2;
+  boothBody.castShadow = true;
+  group.add(boothBody);
+
+  // Windows (darker band around booth)
+  const windowMat = new THREE.MeshLambertMaterial({ color: 0x222833 });
+  const windowBand = new THREE.Mesh(
+    new THREE.BoxGeometry(0.97, 0.35, 0.97),
+    windowMat,
+  );
+  windowBand.position.y = trunkTopY + 0.55;
+  group.add(windowBand);
+
+  // Booth roof
+  const roof = new THREE.Mesh(
+    new THREE.BoxGeometry(1.1, 0.12, 1.1),
+    darkMat,
+  );
+  roof.position.y = trunkTopY + boothH + 0.06;
+  group.add(roof);
+
+  // Flagpole
+  const poleH = 1.5;
+  const pole = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.025, 0.025, poleH, 5),
+    metalMat,
+  );
+  pole.position.y = trunkTopY + boothH + 0.12 + poleH / 2;
+  group.add(pole);
+
+  // Flag — rectangular plane sticking out from the top of the pole.
+  const FLAG_W = 0.9, FLAG_H = 0.55;
+  const flagGroup = new THREE.Group();
+  flagGroup.position.set(FLAG_W / 2, trunkTopY + boothH + 0.12 + poleH - FLAG_H / 2 - 0.05, 0);
+  const flagMesh = new THREE.Mesh(
+    new THREE.PlaneGeometry(FLAG_W, FLAG_H, 1, 1),
+    new THREE.MeshLambertMaterial({
+      color: flagColor,
+      side: THREE.DoubleSide,
+    }),
+  );
+  flagMesh.position.set(0, 0, 0);
+  flagGroup.add(flagMesh);
+
+  // Two-tone accent stripe on bottom third of the flag
+  const accentMat = new THREE.MeshLambertMaterial({
+    color: 0xffffff,
+    side: THREE.DoubleSide,
+  });
+  const accent = new THREE.Mesh(
+    new THREE.PlaneGeometry(FLAG_W, FLAG_H / 3),
+    accentMat,
+  );
+  accent.position.set(0, -FLAG_H / 3, 0.002);
+  flagGroup.add(accent);
+  group.add(flagGroup);
+
+  return group;
+}
+
+function buildGrandstands(centerLine, walls, occupied, rng, track) {
+  // Place ONLY on runs of consecutive straight-type tiles (grid/start/straight).
+  // Stand length is capped to fit within the run so it can't extend into a
+  // curve. Footprint is also cell-checked against all track tiles.
+  if (!track || !track.tiles) return;
+  const STRAIGHT_TYPES = new Set(['straight', 'grid', 'start', 'finish', 'runoff']);
+
+  // For each centerline point, find which tile it's in, and get that tile's type.
   const n = centerLine.length;
-  const STAND_MIN_LEN = 30;
-  const STAND_CURV_MAX = 0.25;
-  const STAND_SPACING = 40;
+  const typeAtIdx = new Array(n).fill(null);
+  for (let i = 0; i < n; i++) {
+    const c = centerLine[i];
+    const gx = Math.floor(c.x / TILE);
+    const gy = Math.floor(c.y / TILE);
+    for (const tile of track.tiles) {
+      if (!tile.cells) continue;
+      if (tile.cells.some(cl => cl.x === gx && cl.y === gy)) {
+        typeAtIdx[i] = tile.type;
+        break;
+      }
+    }
+  }
 
-  let runStart = 0;
-  let runCurv = 0;
-  let lastStandIdx = -STAND_SPACING;
+  // Collect runs of straight centerline indices.
+  const runs = [];
+  let runStart = -1;
+  for (let i = 0; i < n; i++) {
+    if (typeAtIdx[i] && STRAIGHT_TYPES.has(typeAtIdx[i])) {
+      if (runStart < 0) runStart = i;
+    } else if (runStart >= 0) {
+      runs.push({ start: runStart, end: i - 1 });
+      runStart = -1;
+    }
+  }
+  if (runStart >= 0) runs.push({ start: runStart, end: n - 1 });
 
-  function placeGrandstand(startIdx, endIdx) {
-    if (endIdx - startIdx < STAND_MIN_LEN) return;
-    if (startIdx - lastStandIdx < STAND_SPACING) return;
+  // Sample a single point — the BACK CENTER of the stand (deepest into the
+  // off-track area). If that cell is a track tile, we're in a weird
+  // inside-S-curve pocket and should skip. Cells along the tangent are
+  // expected to be track tiles (that's how the stand sits alongside the
+  // track) so those aren't checked.
+  function backCenterHitsTrack(wx, wz, faceAng, depthBack) {
+    // Local -Z direction in world:
+    const bx = wx - Math.sin(faceAng) * depthBack;
+    const bz = wz - Math.cos(faceAng) * depthBack;
+    const gx = Math.floor((bx / PX_TO_WORLD) / TILE);
+    const gy = Math.floor((bz / PX_TO_WORLD) / TILE);
+    return occupied.has(gx + ',' + gy);
+  }
 
-    const mid = Math.floor((startIdx + endIdx) / 2);
+  for (const run of runs) {
+    // Need at least 2 consecutive centerline samples in a run.
+    if (run.end - run.start < 2) continue;
+
+    const mid = Math.floor((run.start + run.end) / 2);
     const lw = walls.left[Math.min(mid, walls.left.length - 1)];
     const rw = walls.right[Math.min(mid, walls.right.length - 1)];
-    if (!lw || !rw) return;
+    if (!lw || !rw) continue;
 
     const useLeft = rng() < 0.5;
     const wall = useLeft ? lw : rw;
@@ -959,47 +1123,81 @@ function buildGrandstands(centerLine, walls, isInTrack, rng) {
 
     const dx = wall.x - other.x;
     const dy = wall.y - other.y;
-    const len = Math.sqrt(dx * dx + dy * dy) || 1;
-    const nx = dx / len, ny = dy / len;
-    const OFFSET_PX = 120;
+    const olen = Math.sqrt(dx * dx + dy * dy) || 1;
+    const nx = dx / olen, ny = dy / olen;
+    const OFFSET_PX = 90;
 
     const wx = (wall.x + nx * OFFSET_PX) * PX_TO_WORLD;
     const wz = (wall.y + ny * OFFSET_PX) * PX_TO_WORLD;
-    if (isInTrack(wx, wz)) return;
 
-    const aPt = centerLine[startIdx];
-    const bPt = centerLine[endIdx];
+    const aPt = centerLine[run.start];
+    const bPt = centerLine[run.end];
     const trackAng = Math.atan2(bPt.y - aPt.y, bPt.x - aPt.x);
 
-    const lengthPx = Math.hypot(bPt.x - aPt.x, bPt.y - aPt.y);
-    const lengthWorld = Math.min(lengthPx * PX_TO_WORLD * 0.6, 12);
+    // Max length that fits within the straight run (minus 20% margin so we
+    // don't graze the adjacent curve tile).
+    const runLenPx = Math.hypot(bPt.x - aPt.x, bPt.y - aPt.y);
+    const maxFromRun = runLenPx * PX_TO_WORLD * 0.8;
+    const lengthWorld = Math.min(maxFromRun, 22);
+    if (lengthWorld < 8) continue;
 
-    const stand = buildGrandstand(Math.max(6, lengthWorld), rng);
-    stand.position.set(wx, 0, wz);
     const faceAng = -trackAng + (useLeft ? Math.PI : 0);
+
+    // Reject if the back-of-stand area lands on another track tile (e.g. in
+    // the pocket of a tight S-curve where the "off-track" side is the next
+    // part of the track).
+    if (backCenterHitsTrack(wx, wz, faceAng, 3.5)) continue;
+
+    const stand = buildGrandstand(lengthWorld, rng);
+    stand.position.set(wx, 0, wz);
     stand.rotation.y = faceAng;
     sceneryGroup.add(stand);
-    lastStandIdx = endIdx;
   }
+}
 
-  for (let i = 1; i < n; i++) {
-    const a = centerLine[i - 1];
-    const b = centerLine[i];
-    const c = centerLine[Math.min(i + 1, n - 1)];
-    const ang1 = Math.atan2(b.y - a.y, b.x - a.x);
-    const ang2 = Math.atan2(c.y - b.y, c.x - b.x);
-    let d = ang2 - ang1;
-    while (d > Math.PI) d -= 2 * Math.PI;
-    while (d < -Math.PI) d += 2 * Math.PI;
-    runCurv += Math.abs(d);
+function buildFlagTowers(centerLine, walls, isInTrack, rng) {
+  const n = centerLine.length;
+  const CURV_WINDOW = 6;
+  const CURV_THRESHOLD = 0.7;
+  const TOWER_SPACING = 22;
+  const FLAG_COLOR = 0x3ba046; // all green
 
-    if (runCurv > STAND_CURV_MAX) {
-      placeGrandstand(runStart, i - 1);
-      runStart = i;
-      runCurv = 0;
-    }
+  let lastTowerIdx = -TOWER_SPACING;
+  for (let i = CURV_WINDOW; i < n - CURV_WINDOW; i++) {
+    if (i - lastTowerIdx < TOWER_SPACING) continue;
+
+    const prev = centerLine[i - CURV_WINDOW];
+    const curr = centerLine[i];
+    const next = centerLine[i + CURV_WINDOW];
+    const a1 = Math.atan2(curr.y - prev.y, curr.x - prev.x);
+    const a2 = Math.atan2(next.y - curr.y, next.x - curr.x);
+    let da = a2 - a1;
+    while (da > Math.PI) da -= 2 * Math.PI;
+    while (da < -Math.PI) da += 2 * Math.PI;
+    if (Math.abs(da) < CURV_THRESHOLD) continue;
+
+    const outerIsRight = da > 0;
+    const outerWall = outerIsRight ? walls.right[i] : walls.left[i];
+    const innerWall = outerIsRight ? walls.left[i] : walls.right[i];
+    if (!outerWall || !innerWall) continue;
+
+    const dx = outerWall.x - innerWall.x;
+    const dy = outerWall.y - innerWall.y;
+    const len = Math.sqrt(dx * dx + dy * dy) || 1;
+    const nx = dx / len, ny = dy / len;
+    const OFFSET_PX = 55;
+    const wx = (outerWall.x + nx * OFFSET_PX) * PX_TO_WORLD;
+    const wz = (outerWall.y + ny * OFFSET_PX) * PX_TO_WORLD;
+    // Skip isInTrack — 55px past the outer wall is guaranteed off-road,
+    // and tile cells are 512px so the check would false-positive here.
+
+    const tower = buildFlagTower(FLAG_COLOR);
+    tower.position.set(wx, 0, wz);
+    const tangent = Math.atan2(next.y - curr.y, next.x - curr.x);
+    tower.rotation.y = -tangent - Math.PI / 2;
+    sceneryGroup.add(tower);
+    lastTowerIdx = i;
   }
-  placeGrandstand(runStart, n - 1);
 }
 
 export function disposeScenery() {

@@ -13,7 +13,10 @@ render-thumbnail.js
 tree-mockups.html
 screenshot-preview.html
 screenshot-*.png
+screenshot-preview.png
 ss-capture.js
+ss-*.js
+check-*.png
 CLAUDE.md
 .zipignore
 .gitignore

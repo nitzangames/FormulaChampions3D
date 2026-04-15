@@ -46,6 +46,11 @@
   <div class="grid" id="decor"></div>
 </div>
 
+<div class="section">
+  <h2>Track structures</h2>
+  <div class="grid" id="structures"></div>
+</div>
+
 <script>
 // ─────────────────────────────────────────────────────────────────────────────
 // Original 5 (matches scenery.js)
@@ -656,8 +661,159 @@ function mountDecor(containerId, buildFn, name, note) {
 mountDecor('decor', buildSmallRock,  'Small Rock',  'Universal. Low icosahedron boulder.');
 mountDecor('decor', buildMediumRock, 'Medium Rock', 'Universal. Bigger boulder, sometimes stacked.');
 mountDecor('decor', buildGrassTuft,  'Grass Tuft',  'Universal. 5 small blade clusters.');
-mountDecor('decor', buildBush,       'Bush',        'Featured extra (seed 0 mod 3). Clustered leafy spheres.');
-mountDecor('decor', buildHayBale,    'Hay Bale',    'Featured extra (seed 1 mod 3). Cylinder lying on side.');
-mountDecor('decor', buildMushroom,   'Mushroom',    'Featured extra (seed 2 mod 3). Red cap with white spots.');
+mountDecor('decor', buildBush,       'Bush',        'Universal. Clustered leafy spheres.');
+
+// ─── Track structures (full scale) ────────────────────────────────────────
+
+function buildMegaGrandstand(length) {
+  const g = new THREE.Group();
+  const structureMat = new THREE.MeshLambertMaterial({ color: 0x505866 });
+  const roofMat = new THREE.MeshLambertMaterial({ color: 0x262d38 });
+  const TIERS = 7, TIER_H = 0.55, TIER_D = 0.5;
+  for (let i = 0; i < TIERS; i++) {
+    const tier = new THREE.Mesh(new THREE.BoxGeometry(length, TIER_H, TIER_D), structureMat);
+    tier.position.set(0, TIER_H / 2 + i * TIER_H, -i * TIER_D);
+    g.add(tier);
+  }
+  const crowdColors = [0xff5722, 0xffeb3b, 0x4caf50, 0x2196f3, 0xe91e63, 0xffffff, 0x9c27b0, 0xff9800];
+  for (let i = 0; i < TIERS; i++) {
+    const rowY = TIER_H + i * TIER_H + 0.18;
+    const rowZ = -i * TIER_D;
+    const heads = Math.floor(length / 0.22);
+    for (let h = 0; h < heads; h++) {
+      if (Math.random() < 0.15) continue;
+      const color = crowdColors[Math.floor(Math.random() * crowdColors.length)];
+      const head = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.34, 0.16),
+        new THREE.MeshLambertMaterial({ color }));
+      head.position.set(-length / 2 + 0.12 + h * 0.22, rowY, rowZ + TIER_D / 2 - 0.02);
+      g.add(head);
+    }
+  }
+  const totalDepth = TIERS * TIER_D + 0.3;
+  const roofY = TIERS * TIER_H + 1.2;
+  const roof = new THREE.Mesh(new THREE.BoxGeometry(length + 0.4, 0.15, totalDepth + 0.2), roofMat);
+  roof.position.set(0, roofY, -totalDepth / 2 + 0.5);
+  g.add(roof);
+  const postMat = new THREE.MeshLambertMaterial({ color: 0x30383f });
+  for (const sx of [-1, 1]) {
+    const fp = new THREE.Mesh(new THREE.BoxGeometry(0.14, roofY, 0.14), postMat);
+    fp.position.set(sx * (length / 2 - 0.1), roofY / 2, 0.25);
+    g.add(fp);
+    const bp = new THREE.Mesh(new THREE.BoxGeometry(0.14, roofY, 0.14), postMat);
+    bp.position.set(sx * (length / 2 - 0.1), roofY / 2, -totalDepth + 0.45);
+    g.add(bp);
+  }
+  const bannerBgMat = new THREE.MeshLambertMaterial({ color: 0xe63946 });
+  const banner = new THREE.Mesh(new THREE.BoxGeometry(length, 0.65, 0.08), bannerBgMat);
+  banner.position.set(0, roofY - 0.35, 0.35);
+  g.add(banner);
+  const stripe = new THREE.Mesh(new THREE.BoxGeometry(length - 0.2, 0.15, 0.02),
+    new THREE.MeshLambertMaterial({ color: 0xffffff }));
+  stripe.position.set(0, roofY - 0.35, 0.4);
+  g.add(stripe);
+  const chSize = 0.35;
+  const m1 = new THREE.MeshLambertMaterial({ color: 0x000000 });
+  const m2 = new THREE.MeshLambertMaterial({ color: 0xffffff });
+  for (let r = 0; r < 2; r++) {
+    for (let c = 0; c < 4; c++) {
+      const mat = ((r + c) % 2 === 0) ? m1 : m2;
+      const tile = new THREE.Mesh(new THREE.BoxGeometry(chSize, chSize, 0.02), mat);
+      tile.position.set(-(4 * chSize) / 2 + c * chSize + chSize / 2, roofY - 0.1 - r * chSize, 0.42);
+      g.add(tile);
+    }
+  }
+  return g;
+}
+
+function buildFlagTowerPreview() {
+  const g = new THREE.Group();
+  const whiteMat = new THREE.MeshLambertMaterial({ color: 0xf0f0f0 });
+  const redMat = new THREE.MeshLambertMaterial({ color: 0xc92a2a });
+  const darkMat = new THREE.MeshLambertMaterial({ color: 0x2a2a33 });
+  const metalMat = new THREE.MeshLambertMaterial({ color: 0x808088 });
+  const base = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.12, 0.9), darkMat);
+  base.position.y = 0.06; g.add(base);
+  const TRUNK_H = 3.2, BAND_H = 0.35;
+  const bands = Math.floor(TRUNK_H / BAND_H);
+  for (let i = 0; i < bands; i++) {
+    const band = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.22, BAND_H, 8),
+      i % 2 === 0 ? redMat : whiteMat);
+    band.position.y = 0.12 + BAND_H / 2 + i * BAND_H;
+    g.add(band);
+  }
+  const trunkTopY = 0.12 + bands * BAND_H;
+  const boothH = 0.8;
+  const booth = new THREE.Mesh(new THREE.BoxGeometry(0.95, boothH, 0.95),
+    new THREE.MeshLambertMaterial({ color: 0xf5f0e2 }));
+  booth.position.y = trunkTopY + boothH / 2; g.add(booth);
+  const winBand = new THREE.Mesh(new THREE.BoxGeometry(0.97, 0.35, 0.97),
+    new THREE.MeshLambertMaterial({ color: 0x222833 }));
+  winBand.position.y = trunkTopY + 0.55; g.add(winBand);
+  const roof = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.12, 1.1), darkMat);
+  roof.position.y = trunkTopY + boothH + 0.06; g.add(roof);
+  const poleH = 1.5;
+  const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, poleH, 5), metalMat);
+  pole.position.y = trunkTopY + boothH + 0.12 + poleH / 2; g.add(pole);
+  const FW = 0.9, FH = 0.55;
+  const fg = new THREE.Group();
+  fg.position.set(FW / 2, trunkTopY + boothH + 0.12 + poleH - FH / 2 - 0.05, 0);
+  const flag = new THREE.Mesh(new THREE.PlaneGeometry(FW, FH),
+    new THREE.MeshLambertMaterial({ color: 0x3ba046, side: THREE.DoubleSide }));
+  fg.add(flag);
+  const accent = new THREE.Mesh(new THREE.PlaneGeometry(FW, FH / 3),
+    new THREE.MeshLambertMaterial({ color: 0xffffff, side: THREE.DoubleSide }));
+  accent.position.set(0, -FH / 3, 0.002);
+  fg.add(accent);
+  g.add(fg);
+  return g;
+}
+
+// Big mount helper for structures — wider camera radius.
+function mountStructure(containerId, buildFn, name, note, camRadius = 14, camY = 5, lookY = 2) {
+  const card = document.createElement('div');
+  card.className = 'card';
+  const host = document.createElement('div'); card.appendChild(host);
+  const meta = document.createElement('div'); meta.className = 'meta';
+  meta.innerHTML = '<div class="name">' + name + '</div><div class="note">' + note + '</div>';
+  card.appendChild(meta);
+  document.getElementById(containerId).appendChild(card);
+
+  const W = 420, H = 420;
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x4fa44a);
+  const cam = new THREE.PerspectiveCamera(35, W / H, 0.1, 200);
+  const sun = new THREE.DirectionalLight(0xffffff, 0.8);
+  sun.position.set(5, 8, 4); scene.add(sun);
+  scene.add(new THREE.AmbientLight(0xffffff, 0.55));
+  const ground = new THREE.Mesh(new THREE.CircleGeometry(12, 32),
+    new THREE.MeshLambertMaterial({ color: 0x3b8a36 }));
+  ground.rotation.x = -Math.PI / 2; scene.add(ground);
+  scene.add(buildFn());
+  const r = new THREE.WebGLRenderer({ antialias: true });
+  r.setSize(W, H); host.appendChild(r.domElement);
+  let angle = 0;
+  function loop() {
+    angle += 0.006;
+    cam.position.x = Math.cos(angle) * camRadius;
+    cam.position.y = camY;
+    cam.position.z = Math.sin(angle) * camRadius;
+    cam.lookAt(0, lookY, 0);
+    r.render(scene, cam);
+    requestAnimationFrame(loop);
+  }
+  loop();
+}
+
+mountStructure('structures',
+  () => buildMegaGrandstand(18),
+  'Mega Grandstand',
+  '7 tiers × 0.55m, length ~18m, 4 posts, red/white banner with checkered panel. Placed along straights, 80px off the wall.',
+  16, 5.5, 2);
+
+mountStructure('structures',
+  buildFlagTowerPreview,
+  'Flag Tower',
+  '~4.5m: red/white striped steel trunk, observation booth with window band, green marshal flag on a pole. Placed on outer side of tight corners, 55px off the wall.',
+  9, 3, 2.5);
 </script>
 </body></html>

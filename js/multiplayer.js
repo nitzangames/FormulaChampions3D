@@ -53,22 +53,66 @@ export function mpOpenLobby({ onStart, onCancel } = {}) {
 
   if (!window.PlaySDK || !window.PlaySDK.multiplayer) {
     console.warn('[mp] PlaySDK not available');
+    showMpToast('Multiplayer unavailable. Reload the page?');
     onCancelCallback();
     return;
   }
 
   window.PlaySDK.onReady(() => {
-    if (!window.PlaySDK.isSignedIn) {
-      alert('Multiplayer requires signing in at play.nitzan.games');
-      onCancelCallback();
-      return;
-    }
-    window.PlaySDK.multiplayer.showLobby({
-      maxPlayers: 4,
-      onStart: () => { onStartCallback(); },
-      onCancel: () => { onCancelCallback(); },
-    });
+    // isSignedIn can flip true after onReady (token arrives via postMessage).
+    // Poll for up to ~4.5s before giving up — defensive fallback for older
+    // cached SDKs. The platform's fixed SDK should satisfy on the first check.
+    let tries = 15;
+    (function check() {
+      if (window.PlaySDK.isSignedIn) {
+        window.PlaySDK.multiplayer.showLobby({
+          maxPlayers: 4,
+          onStart: () => { onStartCallback(); },
+          onCancel: () => { onCancelCallback(); },
+        });
+        return;
+      }
+      if (--tries <= 0) {
+        console.warn('[mp] still not signed in after retries — giving up');
+        showMpToast('Multiplayer needs you signed in at play.nitzan.games.');
+        onCancelCallback();
+        return;
+      }
+      setTimeout(check, 300);
+    })();
   });
+}
+
+// Visible in-game toast. alert() is often suppressed in cross-origin iframes
+// so we render our own banner at the bottom of the screen.
+let _mpToastTimer = null;
+function showMpToast(message) {
+  let el = document.getElementById('mp-toast');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'mp-toast';
+    el.style.cssText = [
+      'position:fixed',
+      'left:50%',
+      'bottom:24px',
+      'transform:translateX(-50%)',
+      'background:#c92a2a',
+      'color:#fff',
+      'padding:12px 18px',
+      'border-radius:10px',
+      'font:600 14px -apple-system,BlinkMacSystemFont,sans-serif',
+      'max-width:80%',
+      'text-align:center',
+      'box-shadow:0 4px 16px rgba(0,0,0,0.4)',
+      'z-index:10000',
+      'pointer-events:none',
+    ].join(';');
+    document.body.appendChild(el);
+  }
+  el.textContent = message;
+  el.style.display = 'block';
+  if (_mpToastTimer) clearTimeout(_mpToastTimer);
+  _mpToastTimer = setTimeout(() => { el.style.display = 'none'; }, 4000);
 }
 
 let selectedTierIdx = 0;

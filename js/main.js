@@ -908,14 +908,14 @@ function setupButtons() {
     startNextRace();
   });
 
-  // Career home: abandon
+  // Career home: abandon. No confirm() — it's suppressed in cross-origin
+  // iframes (e.g. play.nitzan.games hosting cdn-play.nitzan.games). The
+  // button label already warns the user.
   document.getElementById('btn-abandon').addEventListener('click', () => {
     playClick(); hapticTap();
-    if (confirm('Abandon this career? All progress will be lost.')) {
-      resetCareer();
-      career = null;
-      showTitle();
-    }
+    resetCareer();
+    career = null;
+    showTitle();
   });
 
   // HUD: Pause
@@ -931,11 +931,16 @@ function setupButtons() {
     updateToggles();
   });
 
-  // Pause: Resume
+  // Pause: Resume. If we were paused during countdown, show the countdown
+  // screen again; otherwise just hide all screens to reveal the race.
   document.getElementById('btn-resume').addEventListener('click', () => {
     playClick(); hapticTap();
     gameState.resume();
-    showScreen(null);
+    if (gameState.state === 'countdown') {
+      showScreen('countdown');
+    } else {
+      showScreen(null);
+    }
     showHUD();
   });
 

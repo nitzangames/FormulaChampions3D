@@ -13,7 +13,7 @@ export class GameState {
 
   /** Pause the current race. Saves the previous state so we can resume. */
   pause() {
-    if (this.state === 'racing' || this.state === 'finishing') {
+    if (this.state === 'racing' || this.state === 'finishing' || this.state === 'countdown') {
       this._stateBeforePause = this.state;
       this.state = 'paused';
     }

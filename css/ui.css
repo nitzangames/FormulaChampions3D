@@ -230,16 +230,21 @@ html, body {
   background: rgba(255,255,255,0.08);
   padding: 1.6cqh 2.4cqh;
   border-radius: 0.8cqh;
-  min-width: 26cqw;
+  min-width: 60cqw;
 }
 .career-row {
   display: flex; justify-content: space-between; align-items: center;
+  gap: 2cqw;
   font-size: 1.5cqh; color: #ccc;
 }
-.career-row strong { color: #fff; font-size: 1.7cqh; font-weight: 700; }
+.career-row > span:first-child {
+  flex: 1 1 auto; min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.career-row strong { color: #fff; font-size: 1.7cqh; font-weight: 700; flex: 0 0 auto; }
 
 .standings-mini {
-  max-width: 32cqw;
+  max-width: 60cqw; width: 60cqw;
   background: rgba(0,0,0,0.35);
   border: 1px solid rgba(255,255,255,0.15);
   border-radius: 0.8cqh;
@@ -247,9 +252,20 @@ html, body {
   font-size: 1.3cqh; color: #ddd;
   max-height: 30cqh; overflow-y: auto;
 }
-.standings-mini .row { display: flex; justify-content: space-between; padding: 0.3cqh 0; }
+.standings-mini .row {
+  display: flex; justify-content: space-between; align-items: center;
+  gap: 1.5cqw;
+  padding: 0.3cqh 0;
+}
 .standings-mini .row.player { color: #4ecdc4; font-weight: 700; }
 .standings-mini .pos { width: 2.8cqh; display: inline-block; }
+/* Left span (pos + name): truncate long names with ellipsis so the time/pts
+   on the right stays visible. */
+.standings-mini .row > span:first-child {
+  flex: 1 1 auto; min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.standings-mini .row > span:last-child { flex: 0 0 auto; }
 
 .finish-points { color: #ffaa22; font-size: 2cqh !important; font-weight: 700; }
 

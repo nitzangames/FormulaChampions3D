@@ -17,9 +17,20 @@ const SPARK_POOL_SIZE = 15;
 const sparkSprites = [];
 const sparkState = [];
 
-// Skidmarks
+// Skidmarks — single InstancedMesh with a ring-buffer index. One shared
+// geometry + one shared material across all 2000 marks; each spawn writes
+// a matrix via setMatrixAt into a pre-allocated Matrix4. Zero per-frame
+// allocations even at max drift rate.
 const MAX_SKIDMARKS = 2000;
-const skidmarks = []; // { mesh }
+let skidInstancedMesh = null;
+let skidWriteIndex = 0;
+let skidCount = 0;                   // how many slots have been written to (caps at MAX)
+const _skidMatrix = (typeof THREE !== 'undefined') ? new THREE.Matrix4() : null;
+const _skidQuat = (typeof THREE !== 'undefined') ? new THREE.Quaternion() : null;
+const _skidEuler = (typeof THREE !== 'undefined') ? new THREE.Euler() : null;
+const _skidPos = (typeof THREE !== 'undefined') ? new THREE.Vector3() : null;
+const _skidScale = (typeof THREE !== 'undefined') ? new THREE.Vector3(1, 1, 1) : null;
+const _skidHidden = (typeof THREE !== 'undefined') ? new THREE.Matrix4().makeScale(0, 0, 0) : null;
 
 // Groups
 let smokeGroup = null;
@@ -72,11 +83,31 @@ export function initEffects(scene, camera) {
   }
   scene.add(sparkGroup);
 
-  // --- Skidmark group ---
+  // --- Skidmarks: InstancedMesh pool ---
   skidGroup = new THREE.Group();
   skidGroup.name = 'effects_skidmarks';
+  const skidGeo = new THREE.PlaneGeometry(0.06, 0.3);
+  const skidMat = new THREE.MeshBasicMaterial({
+    color: 0x2a2a2a,
+    transparent: true,
+    opacity: 0.3,
+    depthWrite: false,
+    polygonOffset: true,
+    polygonOffsetFactor: -2,
+    polygonOffsetUnits: -2,
+  });
+  skidInstancedMesh = new THREE.InstancedMesh(skidGeo, skidMat, MAX_SKIDMARKS);
+  skidInstancedMesh.count = 0;        // nothing rendered until first spawn
+  skidInstancedMesh.frustumCulled = false;
+  skidWriteIndex = 0;
+  skidCount = 0;
+  // Hide all slots up front so garbage initial matrices don't show.
+  for (let i = 0; i < MAX_SKIDMARKS; i++) {
+    skidInstancedMesh.setMatrixAt(i, _skidHidden);
+  }
+  skidInstancedMesh.instanceMatrix.needsUpdate = true;
+  skidGroup.add(skidInstancedMesh);
   scene.add(skidGroup);
-
 }
 
 // ---------------------------------------------------------------------------
@@ -264,58 +295,49 @@ export function spawnImpactBurst(x2d, y2d, intensity = 1) {
 
 export function addSkidmark(x2d, y2d, angle, steering) {
   if (Math.abs(steering) < 0.15) return;
+  if (!skidInstancedMesh) return;
 
   for (let side = -1; side <= 1; side += 2) {
     // Car forward in 3D = (sin(angle), 0, -cos(angle))
     // Right of car = (cos(angle), 0, sin(angle))
-    // Position = car + Right*side*0.4 - Forward*backDist
     const backDist = 0.8;
     const sideDist = 0.4;
     const wx = x2d * PX_TO_WORLD + side * sideDist * Math.cos(angle) - backDist * Math.sin(angle);
     const wz = y2d * PX_TO_WORLD + side * sideDist * Math.sin(angle) + backDist * Math.cos(angle);
 
-    const geo = new THREE.PlaneGeometry(0.06, 0.3);
-    const mat = new THREE.MeshBasicMaterial({
-      color: 0x2a2a2a,
-      transparent: true,
-      opacity: 0.3,
-      depthWrite: false,
-      polygonOffset: true,
-      polygonOffsetFactor: -2,
-      polygonOffsetUnits: -2,
-    });
-    const mesh = new THREE.Mesh(geo, mat);
+    // Write matrix in place: rotation.x=-π/2 (flat) composed with rotation.z=-angle
+    // is encoded via Euler 'XYZ'. Vector3/Quaternion/Euler/Matrix4 are all
+    // module-scope pre-allocated scratches.
+    _skidEuler.set(-Math.PI / 2, 0, -angle, 'XYZ');
+    _skidQuat.setFromEuler(_skidEuler);
+    _skidPos.set(wx, 0.025, wz);
+    _skidMatrix.compose(_skidPos, _skidQuat, _skidScale);
 
-    // Flat on road — raised above center-line dashes (y=0.02) to avoid
-    // z-fighting. polygonOffset biases toward camera to keep it clean.
-    mesh.rotation.x = -Math.PI / 2;
-    mesh.rotation.z = -angle;
-    mesh.position.set(wx, 0.025, wz);
-
-    skidGroup.add(mesh);
-    skidmarks.push({ mesh, geo, mat });
-
-    // Enforce max
-    if (skidmarks.length > MAX_SKIDMARKS) {
-      const old = skidmarks.shift();
-      skidGroup.remove(old.mesh);
-      old.geo.dispose();
-      old.mat.dispose();
-    }
+    skidInstancedMesh.setMatrixAt(skidWriteIndex, _skidMatrix);
+    skidWriteIndex = (skidWriteIndex + 1) % MAX_SKIDMARKS;
+    if (skidCount < MAX_SKIDMARKS) skidCount++;
   }
+
+  // Tell Three the instance matrices changed this frame, and expose the
+  // filled range. Once the ring wraps, count stays at MAX and old marks
+  // get overwritten in place — no disposal, no array shift, no GC.
+  skidInstancedMesh.count = skidCount;
+  skidInstancedMesh.instanceMatrix.needsUpdate = true;
 }
 
 // ---------------------------------------------------------------------------
-// clearSkidmarks
+// clearSkidmarks — reset the ring buffer without disposing the pool.
 // ---------------------------------------------------------------------------
 
 export function clearSkidmarks() {
-  for (const sm of skidmarks) {
-    skidGroup.remove(sm.mesh);
-    sm.geo.dispose();
-    sm.mat.dispose();
+  if (!skidInstancedMesh) return;
+  for (let i = 0; i < MAX_SKIDMARKS; i++) {
+    skidInstancedMesh.setMatrixAt(i, _skidHidden);
   }
-  skidmarks.length = 0;
+  skidInstancedMesh.instanceMatrix.needsUpdate = true;
+  skidInstancedMesh.count = 0;
+  skidWriteIndex = 0;
+  skidCount = 0;
 }
 
 // ---------------------------------------------------------------------------

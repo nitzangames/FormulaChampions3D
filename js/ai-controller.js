@@ -4,6 +4,12 @@ import {
   RUBBERBAND_AHEAD_MULT, RUBBERBAND_BEHIND_MULT,
 } from './constants.js';
 
+// Module-scope constants — hoisted out of tick() so the tick hot path
+// allocates nothing. Ray angles relative to car forward; odd count so one
+// is centered. Spread covers roughly ±60°.
+const RAY_ANGLES = [-1.0, -0.6, -0.3, 0, 0.3, 0.6, 1.0];
+const MAX_RAY_DIST = 900;
+
 /**
  * AIController — one instance per AI car.
  *
@@ -93,23 +99,16 @@ export class AIController {
     const oy = car.physY;
     const angle = car.physAngle;
 
-    // Ray angles relative to car forward: odd count so one is centered.
-    // Spread covers roughly ±60°.
-    const RAY_ANGLES = [-1.0, -0.6, -0.3, 0, 0.3, 0.6, 1.0];
-    const MAX_RAY_DIST = 900;
-
     // Car forward = (sin A, -cos A). Rotate by each offset.
     let bestScore = -Infinity;
     let bestOffset = 0;
     let forwardHit = MAX_RAY_DIST;
-    const hits = new Array(RAY_ANGLES.length);
 
     for (let i = 0; i < RAY_ANGLES.length; i++) {
       const theta = angle + RAY_ANGLES[i];
       const dx = Math.sin(theta);
       const dy = -Math.cos(theta);
       const hit = this._castRay(ox, oy, dx, dy, MAX_RAY_DIST);
-      hits[i] = hit;
       if (RAY_ANGLES[i] === 0) forwardHit = hit;
 
       // Score favors clear distance, penalizes steering away from straight
@@ -157,7 +156,9 @@ export class AIController {
       const AVOID_RADIUS = 220;
       const AVOID_STRENGTH = 1.2;
       let avoidBias = 0;
-      for (const other of this.allCars) {
+      const cars = this.allCars;
+      for (let c = 0; c < cars.length; c++) {
+        const other = cars[c];
         if (!other || other === car || !other.body) continue;
         const ddx = other.physX - ox;
         const ddy = other.physY - oy;

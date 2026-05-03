@@ -26,7 +26,12 @@ import {
   getCareer, hasCareer, startNewCareer, recordRaceResult,
   seasonSummary, endSeason, resetCareer, isCareerComplete,
 } from './career.js';
-import { initRenderer, render as renderScene, getScene, getCamera, updateSunPosition } from './renderer3d.js';
+import { initRenderer, render as renderScene, getScene, getCamera, updateSunPosition, applyGraphicsSettings } from './renderer3d.js';
+import {
+  getShadowsEnabled, setShadowsEnabled,
+  getAntialiasEnabled, setAntialiasEnabled,
+  getPixelRatio, cyclePixelRatio,
+} from './graphics-settings.js';
 import { mpOpenLobby, mpGetRoom, mpIsHost, mpLocalUserId, mpShowHostPicker, mpShowWaiting, mpInitMessaging, mpSetMessageHandler, mpSetDisconnectHandler, mpHostStartRace, mpBroadcast, mpClearSnapshots, mpBroadcastLocalCar, mpIngestCarState, mpInterpolateRemote, mpResetFinishTracker, mpReportLocalFinish, mpIngestFinish } from './multiplayer.js';
 import { initChaseCamera, updateChaseCamera, triggerShake, resetChaseCamera } from './camera3d.js';
 import { buildTrack as buildTrack3D, disposeTrack, setStartLights } from './track-builder.js';
@@ -44,6 +49,10 @@ let world = null;
 let cars = [];
 let carModels = [];
 let aiControllers = [];
+// Body → Car reverse lookup, rebuilt in spawnCars. Used by the collision
+// callback to avoid allocating a closure + iterator (cars.find(...)) every
+// wall/car contact.
+const carByBody = new Map();
 let race = null;
 let centerLine = null;
 let walls = null;
@@ -81,6 +90,16 @@ const MINIMAP_DOT_COLORS = CAR_COLORS.map(hex => '#' + hex.toString(16).padStart
 // Overlay canvas for 2D steering wheel
 const overlayCanvas = document.getElementById('overlay-canvas');
 const overlayCtx = overlayCanvas.getContext('2d');
+
+// Progress helper hoisted to module scope so per-frame callers (HUD, AI
+// ordering) don't allocate a fresh closure every tick.
+function _progressForCar(car) {
+  return computeProgress(
+    car.physX, car.physY,
+    car.currentWaypointIdx,
+    centerLine, cl, car.lapsCompleted || 0,
+  );
+}
 
 // ── Time formatting ─────────────────────────────────────────────────────────
 
@@ -201,7 +220,7 @@ function initTrack(seed) {
     else if (udB.type === 'car' && udA.type === 'wall') carBody = bodyB;
 
     if (carBody) {
-      const car = cars.find(c => c.body === carBody);
+      const car = carByBody.get(carBody);
       if (car) {
         const wasCrashed = car.crashed;
         car.onWallCollision(contact);
@@ -222,12 +241,13 @@ function initTrack(seed) {
 
     // Car-vs-car: spawn impact burst at midpoint (throttled per pair).
     if (udA.type === 'car' && udB.type === 'car') {
-      const carA = cars.find(c => c.body === bodyA);
-      const carB = cars.find(c => c.body === bodyB);
+      const carA = carByBody.get(bodyA);
+      const carB = carByBody.get(bodyB);
       if (!carA || !carB) return;
-      const idxA = cars.indexOf(carA);
-      const idxB = cars.indexOf(carB);
-      const key = idxA < idxB ? `${idxA}-${idxB}` : `${idxB}-${idxA}`;
+      const idxA = carA.gridIndex;
+      const idxB = carB.gridIndex;
+      // Integer key built without a string literal — sparse pair encoding.
+      const key = idxA < idxB ? (idxA * 100 + idxB) : (idxB * 100 + idxA);
       const now = performance.now();
       const last = carContactLastBurst.get(key) || 0;
       if (now - last < CAR_BURST_COOLDOWN_MS) return;
@@ -262,6 +282,7 @@ function spawnCars() {
   cars = [];
   carModels = [];
   aiControllers = [];
+  carByBody.clear();
 
   // Finish line = exit of start tile = waypoint 3 (2 grid tiles + 1 start tile)
   const finishIdx = 3;
@@ -350,8 +371,12 @@ function spawnCars() {
     car.finished = false;
     car.maxSpeedMult = speedMult;
     car.userData = { userId: spec.userId || null };
+    // Pre-indexed for the collision callback's carByBody lookup and for
+    // car-vs-car pair-key encoding.
+    car.gridIndex = cars.length;
 
     cars.push(car);
+    carByBody.set(car.body, car);
 
     const model = buildCarModel(0, CAR_COLORS[i]);
     model.castShadow = true;
@@ -472,15 +497,12 @@ function updateHUD() {
 
     const posEl = document.getElementById('hud-pos');
     if (posEl && cl) {
-      const standings = rankStandings(cars, (car) =>
-        computeProgress(
-          { x: car.physX, y: car.physY },
-          car.currentWaypointIdx,
-          centerLine, cl, car.lapsCompleted || 0
-        )
-      );
-      const playerStanding = standings.find(s => s.idx === 0);
-      const pos = playerStanding ? playerStanding.position : 1;
+      const standings = rankStandings(cars, _progressForCar);
+      // Find the player (idx 0) without allocating an iterator / closure.
+      let pos = 1;
+      for (let i = 0; i < standings.length; i++) {
+        if (standings[i].idx === 0) { pos = standings[i].position; break; }
+      }
       const total = raceMode === 'multiplayer' ? cars.length : NUM_CARS;
       posEl.textContent = `POS ${pos}/${total}`;
     }
@@ -715,8 +737,8 @@ function showRaceResults(finishOrder) {
     if (!finishOrder.includes(i)) unfinished.push(i);
   }
   unfinished.sort((a, b) => {
-    const pa = computeProgress({ x: cars[a].physX, y: cars[a].physY }, cars[a].currentWaypointIdx, centerLine, cl, cars[a].lapsCompleted || 0);
-    const pb = computeProgress({ x: cars[b].physX, y: cars[b].physY }, cars[b].currentWaypointIdx, centerLine, cl, cars[b].lapsCompleted || 0);
+    const pa = computeProgress(cars[a].physX, cars[a].physY, cars[a].currentWaypointIdx, centerLine, cl, cars[a].lapsCompleted || 0);
+    const pb = computeProgress(cars[b].physX, cars[b].physY, cars[b].currentWaypointIdx, centerLine, cl, cars[b].lapsCompleted || 0);
     return pb - pa;
   });
   for (const idx of unfinished) live.push({ carIdx: idx, finished: false });
@@ -1028,11 +1050,37 @@ function setupButtons() {
     updateToggles();
     playClick(); hapticTap();
   });
+
+  // Shadows toggle
+  document.getElementById('btn-shadows').addEventListener('click', () => {
+    setShadowsEnabled(!getShadowsEnabled());
+    applyGraphicsSettings();
+    updateToggles();
+    playClick(); hapticTap();
+  });
+
+  // Antialias toggle — takes effect next reload (WebGL context attribute)
+  document.getElementById('btn-antialias').addEventListener('click', () => {
+    setAntialiasEnabled(!getAntialiasEnabled());
+    updateToggles();
+    playClick(); hapticTap();
+  });
+
+  // Resolution cycle: 1.0 → 1.5 → 2.0 → 1.0
+  document.getElementById('btn-pixelratio').addEventListener('click', () => {
+    cyclePixelRatio();
+    applyGraphicsSettings();
+    updateToggles();
+    playClick(); hapticTap();
+  });
 }
 
 function updateToggles() {
   const sfxBtn = document.getElementById('btn-sfx');
   const hapBtn = document.getElementById('btn-haptics');
+  const shadowBtn = document.getElementById('btn-shadows');
+  const aaBtn = document.getElementById('btn-antialias');
+  const prBtn = document.getElementById('btn-pixelratio');
   if (sfxBtn) {
     sfxBtn.textContent = getSfxEnabled() ? 'ON' : 'OFF';
     sfxBtn.classList.toggle('active', getSfxEnabled());
@@ -1040,6 +1088,19 @@ function updateToggles() {
   if (hapBtn) {
     hapBtn.textContent = getHapticsEnabled() ? 'ON' : 'OFF';
     hapBtn.classList.toggle('active', getHapticsEnabled());
+  }
+  if (shadowBtn) {
+    shadowBtn.textContent = getShadowsEnabled() ? 'ON' : 'OFF';
+    shadowBtn.classList.toggle('active', getShadowsEnabled());
+  }
+  if (aaBtn) {
+    aaBtn.textContent = getAntialiasEnabled() ? 'ON' : 'OFF';
+    aaBtn.classList.toggle('active', getAntialiasEnabled());
+  }
+  if (prBtn) {
+    const pr = getPixelRatio();
+    prBtn.textContent = pr.toFixed(1) + 'x';
+    prBtn.classList.toggle('active', pr >= 1.5);
   }
 }
 
@@ -1076,7 +1137,7 @@ function fixedUpdate() {
     let playerSteering;
     if (playerFinished && playerAutoController) {
       const ownProgress = computeProgress(
-        { x: cars[0].physX, y: cars[0].physY },
+        cars[0].physX, cars[0].physY,
         cars[0].currentWaypointIdx,
         centerLine, cl, cars[0].lapsCompleted || 0,
       );
@@ -1088,7 +1149,7 @@ function fixedUpdate() {
     cars[0].update(playerSteering);
 
     const playerProgress = computeProgress(
-      { x: cars[0].physX, y: cars[0].physY },
+      cars[0].physX, cars[0].physY,
       cars[0].currentWaypointIdx,
       centerLine, cl, cars[0].lapsCompleted
     );
@@ -1097,7 +1158,7 @@ function fixedUpdate() {
       const ai = aiControllers[i];
       const aiCar = cars[i + 1];
       const aiProgress = computeProgress(
-        { x: aiCar.physX, y: aiCar.physY },
+        aiCar.physX, aiCar.physY,
         aiCar.currentWaypointIdx,
         centerLine, cl, aiCar.lapsCompleted
       );
@@ -1416,7 +1477,7 @@ function renderFrame(dt) {
   updateHUD();
 
   const st = gameState.state;
-  if (st === 'racing' || st === 'finishing') {
+  if (st === 'countdown' || st === 'racing' || st === 'finishing') {
     drawMinimap();
   }
 

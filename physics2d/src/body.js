@@ -87,9 +87,8 @@ export class Body {
   }
 
   updateAABB() {
-    const fresh = this.shape.computeAABB(this.position, this.angle);
-    this._aabb.min.set(fresh.min.x, fresh.min.y);
-    this._aabb.max.set(fresh.max.x, fresh.max.y);
+    // Zero-alloc: writes directly into the body's cached Vec2 aabb slots.
+    this.shape.computeAABBInto(this.position, this.angle, this._aabb.min, this._aabb.max);
     this._aabbDirty = false;
   }
 

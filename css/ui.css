@@ -204,7 +204,7 @@ html, body {
 
 #minimap {
   position: absolute;
-  bottom: 6cqh;
+  top: 6cqh;
   right: 1.6cqh;
   width: 10cqh; height: 10cqh;
   border-radius: 0.8cqh;

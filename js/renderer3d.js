@@ -1,14 +1,21 @@
 import { CHASE_CAM_FOV } from './constants.js';
+import {
+  getShadowsEnabled, getAntialiasEnabled, getPixelRatio,
+} from './graphics-settings.js';
 
 let renderer, scene, camera, sunLight;
+let cachedCanvas = null;
 
 const ASPECT = 9 / 16; // portrait 9:16
 
 export function initRenderer(canvas) {
-  // WebGL renderer
-  renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+  cachedCanvas = canvas;
+
+  // WebGL renderer. `antialias` is baked into the context at creation — if
+  // the user toggles it, we rebuild the renderer (see rebuildRenderer()).
+  renderer = new THREE.WebGLRenderer({ canvas, antialias: getAntialiasEnabled() });
   renderer.setClearColor(0x87ceeb); // sky blue
-  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.enabled = getShadowsEnabled();
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
   // Scene with fog
@@ -56,17 +63,15 @@ function handleResize() {
 
   let w, h;
   if (vw / vh < ASPECT) {
-    // viewport is narrower than 9:16 — fit width
     w = vw;
     h = vw / ASPECT;
   } else {
-    // viewport is wider than 9:16 — fit height
     h = vh;
     w = vh * ASPECT;
   }
 
   renderer.setSize(w, h);
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, getPixelRatio()));
   camera.aspect = ASPECT;
   camera.updateProjectionMatrix();
 }
@@ -80,6 +85,16 @@ export function updateSunPosition(x, z) {
   sunLight.position.set(x + 10, 20, z + 10);
   sunLight.target.position.set(x, 0, z);
   sunLight.target.updateMatrixWorld();
+}
+
+// Apply runtime-togglable graphics settings. Shadows and pixel ratio can
+// change without rebuilding. Antialias is a WebGL context attribute so it
+// requires a renderer rebuild; the caller should pass `rebuild=true` when
+// AA changes, which is disruptive mid-race so we warn in the UI.
+export function applyGraphicsSettings() {
+  if (!renderer) return;
+  renderer.shadowMap.enabled = getShadowsEnabled();
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, getPixelRatio()));
 }
 
 export function getScene() { return scene; }

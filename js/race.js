@@ -40,16 +40,19 @@ export function computeCenterLineLengths(centerLine) {
  *   progress = lapsCompleted * trackLength
  *            + lengths[currentWaypointIdx]
  *            + fractional distance from that waypoint toward the next
+ *
+ * Takes x,y as separate numbers (not a {x,y} literal) so hot-path callers
+ * don't allocate an object per invocation.
  */
-export function computeProgress(carPos, currentWaypointIdx, centerLine, cl, lapsCompleted) {
+export function computeProgress(carX, carY, currentWaypointIdx, centerLine, cl, lapsCompleted) {
   const n = centerLine.length;
   const here = centerLine[currentWaypointIdx];
   const next = centerLine[(currentWaypointIdx + 1) % n];
   const segDx = next.x - here.x;
   const segDy = next.y - here.y;
   const segLen2 = segDx * segDx + segDy * segDy;
-  const px = carPos.x - here.x;
-  const py = carPos.y - here.y;
+  const px = carX - here.x;
+  const py = carY - here.y;
   let t = segLen2 > 0 ? (px * segDx + py * segDy) / segLen2 : 0;
   if (t < 0) t = 0;
   if (t > 1) t = 1;
@@ -197,9 +200,29 @@ export function advanceWaypoint(car, currentIdx, centerLine) {
 /**
  * Rank an array of cars by progress (highest first). Returns an array
  * of { idx, position, progress } objects, where position is 1..N.
+ *
+ * Uses a persistent module-scope buffer so per-frame callers (HUD) don't
+ * allocate. Callers that need their own copy should clone the result
+ * before the next call.
  */
+const _standingsScratch = [];
+function _progressDesc(a, b) { return b.progress - a.progress; }
+
 export function rankStandings(cars, progressFn) {
-  const rows = cars.map((c, i) => ({ idx: i, progress: progressFn(c) }));
-  rows.sort((a, b) => b.progress - a.progress);
-  return rows.map((r, pos) => ({ idx: r.idx, position: pos + 1, progress: r.progress }));
+  const out = _standingsScratch;
+  out.length = cars.length;
+  for (let i = 0; i < cars.length; i++) {
+    let row = out[i];
+    if (!row) {
+      row = { idx: 0, position: 0, progress: 0 };
+      out[i] = row;
+    }
+    row.idx = i;
+    row.progress = progressFn(cars[i], i);
+  }
+  out.sort(_progressDesc);
+  for (let i = 0; i < out.length; i++) {
+    out[i].position = i + 1;
+  }
+  return out;
 }

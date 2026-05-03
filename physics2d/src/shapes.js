@@ -1,9 +1,26 @@
 import { Vec2 } from './math.js';
 
+// All shapes expose two AABB entry points:
+//
+//   computeAABBInto(position, angle, outMin, outMax)
+//     Writes the AABB into caller-owned Vec2s. Zero allocation on hot paths
+//     (called every physics step via Body.updateAABB).
+//
+//   computeAABB(position, angle)
+//     Legacy convenience that returns `{ min, max }` of fresh Vec2s. Kept
+//     for tests and any external callers; allocates per call, so game code
+//     should prefer `computeAABBInto`.
+
 export class Circle {
   constructor(radius) {
     this.type = 'circle';
     this.radius = radius;
+  }
+
+  computeAABBInto(position, angle, outMin, outMax) {
+    const r = this.radius;
+    outMin.set(position.x - r, position.y - r);
+    outMax.set(position.x + r, position.y + r);
   }
 
   computeAABB(position, angle) {
@@ -37,17 +54,24 @@ export class Rectangle {
     return localVerts.map(v => v.rotate(angle).add(position));
   }
 
+  computeAABBInto(position, angle, outMin, outMax) {
+    const hw = this.width / 2;
+    const hh = this.height / 2;
+    const c = Math.cos(angle);
+    const s = Math.sin(angle);
+    // The axis-aligned extents of a rotated rectangle reduce to:
+    //   extentX = |c|*hw + |s|*hh
+    //   extentY = |s|*hw + |c|*hh
+    const ex = Math.abs(c) * hw + Math.abs(s) * hh;
+    const ey = Math.abs(s) * hw + Math.abs(c) * hh;
+    outMin.set(position.x - ex, position.y - ey);
+    outMax.set(position.x + ex, position.y + ey);
+  }
+
   computeAABB(position, angle) {
-    const verts = this.getVertices(position, angle);
-    let minX = Infinity, minY = Infinity;
-    let maxX = -Infinity, maxY = -Infinity;
-    for (const v of verts) {
-      if (v.x < minX) minX = v.x;
-      if (v.y < minY) minY = v.y;
-      if (v.x > maxX) maxX = v.x;
-      if (v.y > maxY) maxY = v.y;
-    }
-    return { min: new Vec2(minX, minY), max: new Vec2(maxX, maxY) };
+    const out = { min: new Vec2(0, 0), max: new Vec2(0, 0) };
+    this.computeAABBInto(position, angle, out.min, out.max);
+    return out;
   }
 
   computeInertia(mass) {
@@ -65,17 +89,28 @@ export class Triangle {
     return this.vertices.map(v => v.rotate(angle).add(position));
   }
 
-  computeAABB(position, angle) {
-    const verts = this.getVertices(position, angle);
+  computeAABBInto(position, angle, outMin, outMax) {
+    const c = Math.cos(angle);
+    const s = Math.sin(angle);
     let minX = Infinity, minY = Infinity;
     let maxX = -Infinity, maxY = -Infinity;
-    for (const v of verts) {
-      if (v.x < minX) minX = v.x;
-      if (v.y < minY) minY = v.y;
-      if (v.x > maxX) maxX = v.x;
-      if (v.y > maxY) maxY = v.y;
+    for (let i = 0; i < 3; i++) {
+      const v = this.vertices[i];
+      const x = position.x + v.x * c - v.y * s;
+      const y = position.y + v.x * s + v.y * c;
+      if (x < minX) minX = x;
+      if (y < minY) minY = y;
+      if (x > maxX) maxX = x;
+      if (y > maxY) maxY = y;
     }
-    return { min: new Vec2(minX, minY), max: new Vec2(maxX, maxY) };
+    outMin.set(minX, minY);
+    outMax.set(maxX, maxY);
+  }
+
+  computeAABB(position, angle) {
+    const out = { min: new Vec2(0, 0), max: new Vec2(0, 0) };
+    this.computeAABBInto(position, angle, out.min, out.max);
+    return out;
   }
 
   computeInertia(mass) {
@@ -105,13 +140,29 @@ export class Capsule {
     };
   }
 
-  computeAABB(position, angle) {
-    const seg = this.getSegment(position, angle);
+  computeAABBInto(position, angle, outMin, outMax) {
+    const half = this.length / 2;
+    const c = Math.cos(angle);
+    const s = Math.sin(angle);
+    const dx = c * half;
+    const dy = s * half;
+    const sx = position.x - dx;
+    const sy = position.y - dy;
+    const ex = position.x + dx;
+    const ey = position.y + dy;
     const r = this.radius;
-    return {
-      min: new Vec2(Math.min(seg.start.x, seg.end.x) - r, Math.min(seg.start.y, seg.end.y) - r),
-      max: new Vec2(Math.max(seg.start.x, seg.end.x) + r, Math.max(seg.start.y, seg.end.y) + r)
-    };
+    const minX = (sx < ex ? sx : ex) - r;
+    const minY = (sy < ey ? sy : ey) - r;
+    const maxX = (sx > ex ? sx : ex) + r;
+    const maxY = (sy > ey ? sy : ey) + r;
+    outMin.set(minX, minY);
+    outMax.set(maxX, maxY);
+  }
+
+  computeAABB(position, angle) {
+    const out = { min: new Vec2(0, 0), max: new Vec2(0, 0) };
+    this.computeAABBInto(position, angle, out.min, out.max);
+    return out;
   }
 
   computeInertia(mass) {
@@ -130,13 +181,21 @@ export class Edge {
     this.end = end;
   }
 
+  computeAABBInto(position, angle, outMin, outMax) {
+    const c = Math.cos(angle);
+    const s = Math.sin(angle);
+    const sx = position.x + this.start.x * c - this.start.y * s;
+    const sy = position.y + this.start.x * s + this.start.y * c;
+    const ex = position.x + this.end.x * c - this.end.y * s;
+    const ey = position.y + this.end.x * s + this.end.y * c;
+    outMin.set(sx < ex ? sx : ex, sy < ey ? sy : ey);
+    outMax.set(sx > ex ? sx : ex, sy > ey ? sy : ey);
+  }
+
   computeAABB(position, angle) {
-    const s = this.start.rotate(angle).add(position);
-    const e = this.end.rotate(angle).add(position);
-    return {
-      min: new Vec2(Math.min(s.x, e.x), Math.min(s.y, e.y)),
-      max: new Vec2(Math.max(s.x, e.x), Math.max(s.y, e.y))
-    };
+    const out = { min: new Vec2(0, 0), max: new Vec2(0, 0) };
+    this.computeAABBInto(position, angle, out.min, out.max);
+    return out;
   }
 
   computeInertia(mass) {

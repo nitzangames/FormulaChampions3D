@@ -45,6 +45,7 @@ export class Input {
       // Zero work — just record raw value. update() processes it once per frame.
       this._rawX = e.clientX;
       this._rawDirty = true;
+      this._source = 'pointer';
     }, { passive: true });
 
     const end = () => {
@@ -98,6 +99,7 @@ export class Input {
       this._keyLeft = false;
       this._keyRight = false;
       this._keyTarget = 0;
+      this._source = 'pointer';
     });
   }
 

@@ -38,6 +38,7 @@ export class Input {
       this._setDragScreen(e.clientX, e.clientY);
       this.dragging = true;
       this.pointerType = e.pointerType || 'mouse';
+      this._source = 'pointer';
     }, { passive: true });
 
     canvas.addEventListener('pointermove', (e) => {
@@ -48,9 +49,11 @@ export class Input {
 
     const end = () => {
       this._dragging = false;
-      this._steering = 0;
       this.dragging = false;
       this._rawDirty = false;
+      if (this._source === 'pointer') {
+        this._steering = 0;
+      }
     };
     canvas.addEventListener('pointerup', end, { passive: true });
     canvas.addEventListener('pointercancel', end, { passive: true });

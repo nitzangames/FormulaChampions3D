@@ -22,6 +22,13 @@ export class Input {
     this.dragging = false;
     this.pointerType = 'mouse'; // 'mouse' | 'touch' | 'pen'
 
+    // Keyboard state
+    this._keyLeft = false;
+    this._keyRight = false;
+    this._keyTarget = 0;        // -1, 0, or +1 based on keys held
+    this._source = 'pointer';   // 'pointer' | 'keyboard'
+    this._lastUpdateMs = 0;     // for dt computation in update()
+
     canvas.addEventListener('pointerdown', (e) => {
       try { canvas.setPointerCapture(e.pointerId); } catch (_) {}
       this._dragging = true;
@@ -47,6 +54,48 @@ export class Input {
     };
     canvas.addEventListener('pointerup', end, { passive: true });
     canvas.addEventListener('pointercancel', end, { passive: true });
+
+    window.addEventListener('keydown', (e) => {
+      if (e.repeat) return;
+      let matched = false;
+      if (e.code === 'ArrowLeft' || e.code === 'KeyA') {
+        this._keyLeft = true;
+        matched = true;
+      } else if (e.code === 'ArrowRight' || e.code === 'KeyD') {
+        this._keyRight = true;
+        matched = true;
+      }
+      if (matched) {
+        this._keyTarget = (this._keyLeft && this._keyRight) ? 0
+                        : this._keyLeft ? -1
+                        : this._keyRight ? 1 : 0;
+        this._source = 'keyboard';
+        e.preventDefault();
+      }
+    });
+
+    window.addEventListener('keyup', (e) => {
+      let matched = false;
+      if (e.code === 'ArrowLeft' || e.code === 'KeyA') {
+        this._keyLeft = false;
+        matched = true;
+      } else if (e.code === 'ArrowRight' || e.code === 'KeyD') {
+        this._keyRight = false;
+        matched = true;
+      }
+      if (matched) {
+        this._keyTarget = (this._keyLeft && this._keyRight) ? 0
+                        : this._keyLeft ? -1
+                        : this._keyRight ? 1 : 0;
+        e.preventDefault();
+      }
+    });
+
+    window.addEventListener('blur', () => {
+      this._keyLeft = false;
+      this._keyRight = false;
+      this._keyTarget = 0;
+    });
   }
 
   /** Called once per frame from the game loop. Converts raw coords to steering. */

@@ -98,12 +98,30 @@ export class Input {
     });
   }
 
-  /** Called once per frame from the game loop. Converts raw coords to steering. */
+  /** Called once per frame from the game loop. Drives _steering from the
+   *  current source (pointer drag or keyboard ramp). */
   update() {
-    if (!this._dragging || !this._rawDirty) return;
-    const dx = this._rawX - this._startX;
-    this._steering = Math.max(-1, Math.min(1, dx / this._maxDragPx));
-    this._rawDirty = false;
+    const now = performance.now();
+    let dt = this._lastUpdateMs ? (now - this._lastUpdateMs) / 1000 : 0;
+    this._lastUpdateMs = now;
+    if (dt > 0.05) dt = 0.05; // clamp so a tab pause does not snap to full lock
+
+    if (this._source === 'pointer') {
+      if (!this._dragging || !this._rawDirty) return;
+      const dx = this._rawX - this._startX;
+      this._steering = Math.max(-1, Math.min(1, dx / this._maxDragPx));
+      this._rawDirty = false;
+      return;
+    }
+
+    // Keyboard source: ramp _steering toward _keyTarget at 1 / 0.15 per second.
+    const target = this._keyTarget;
+    const delta = (1 / 0.15) * dt;
+    if (this._steering < target) {
+      this._steering = this._steering + delta < target ? this._steering + delta : target;
+    } else if (this._steering > target) {
+      this._steering = this._steering - delta > target ? this._steering - delta : target;
+    }
   }
 
   _setDragScreen(clientX, clientY) {

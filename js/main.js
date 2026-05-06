@@ -231,9 +231,11 @@ function initTrack(seed) {
             hapticThump();
             triggerShake(0.4);
             respawnTimer = RESPAWN_DELAY_SEC;
+            input.recenter();
           }
         } else if (!car.crashed) {
           playBumpSound();
+          if (car === cars[0]) input.recenter();
         }
       }
       return;
@@ -444,6 +446,7 @@ function respawnPlayer() {
   car.speed = 0;
   car.crashed = false;
   car._bounceTimer = 0;
+  input.recenter();
 }
 
 // ── HUD update ──────────────────────────────────────────────────────────────

@@ -102,6 +102,12 @@ html, body {
   font-size: 1.8cqh; font-weight: 600;
   border-radius: 0.8cqh; cursor: pointer;
 }
+/* Main menu: force all action buttons to the same width for visual alignment. */
+#screen-title .btn-primary,
+#screen-title .btn-secondary {
+  width: 40cqw;
+  text-align: center;
+}
 .btn-icon {
   background: rgba(0,0,0,0.4); color: #fff; border: none;
   width: 4cqh; height: 4cqh;

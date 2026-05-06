@@ -4,6 +4,12 @@
 // to steering once per frame via update(). setPointerCapture lets us listen
 // only on the canvas; events keep flowing even if the finger leaves it.
 
+// Keyboard tuning — iterate here.
+const KEY_TAP_INCREMENT = 0.1;   // steering added on each keydown (0..1 scale)
+const KEY_HOLD_RATE = 1.0;       // steering added per second while held
+const KEY_RECENTER_RATE = 0.5;   // steering drifted back to 0 per second when no key held
+const KEY_REVERSE_MULTIPLIER = 3; // tap+hold rates multiplied when reversing direction
+
 export class Input {
   constructor(canvas) {
     this._canvas = canvas;
@@ -61,15 +67,23 @@ export class Input {
 
     window.addEventListener('keydown', (e) => {
       if (e.repeat) return;
-      let matched = false;
+      let dir = 0;
       if (e.code === 'ArrowLeft' || e.code === 'KeyA') {
         this._keyLeft = true;
-        matched = true;
+        dir = -1;
       } else if (e.code === 'ArrowRight' || e.code === 'KeyD') {
         this._keyRight = true;
-        matched = true;
+        dir = 1;
       }
-      if (matched) {
+      if (dir !== 0) {
+        // Discrete tap bump: each press nudges steering in this direction.
+        // When reversing direction, the tap bump is amplified so the wheel
+        // crosses zero quickly instead of having to undo prior accumulation.
+        const reversing = (this._steering > 0 && dir < 0) || (this._steering < 0 && dir > 0);
+        const tap = KEY_TAP_INCREMENT * (reversing ? KEY_REVERSE_MULTIPLIER : 1);
+        this._steering += tap * dir;
+        if (this._steering > 1) this._steering = 1;
+        else if (this._steering < -1) this._steering = -1;
         this._keyTarget = (this._keyLeft && this._keyRight) ? 0
                         : this._keyLeft ? -1
                         : this._keyRight ? 1 : 0;
@@ -119,14 +133,30 @@ export class Input {
       return;
     }
 
-    // Keyboard source: ramp _steering toward _keyTarget at 1 / 0.15 per second.
-    const target = this._keyTarget;
-    const delta = (1 / 0.15) * dt;
-    if (this._steering < target) {
-      this._steering = this._steering + delta < target ? this._steering + delta : target;
-    } else if (this._steering > target) {
-      this._steering = this._steering - delta > target ? this._steering - delta : target;
+    // Keyboard source: while a single direction is held, accumulate _steering
+    // in that direction. With no key held, drift slowly back to 0.
+    const dir = this._keyTarget;
+    if (dir !== 0) {
+      const reversing = (this._steering > 0 && dir < 0) || (this._steering < 0 && dir > 0);
+      const rate = KEY_HOLD_RATE * (reversing ? KEY_REVERSE_MULTIPLIER : 1);
+      this._steering += rate * dt * dir;
+      if (this._steering > 1) this._steering = 1;
+      else if (this._steering < -1) this._steering = -1;
+    } else if (this._steering !== 0) {
+      const decay = KEY_RECENTER_RATE * dt;
+      if (this._steering > 0) {
+        this._steering = this._steering - decay > 0 ? this._steering - decay : 0;
+      } else {
+        this._steering = this._steering + decay < 0 ? this._steering + decay : 0;
+      }
     }
+  }
+
+  /** Snap steering to 0. Called externally on respawn or wall collision so the
+   *  wheel matches the car's new direction. Held keys are kept; if a key is
+   *  still down, the accumulator will start building from 0 again. */
+  recenter() {
+    this._steering = 0;
   }
 
   _setDragScreen(clientX, clientY) {

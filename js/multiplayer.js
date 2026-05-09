@@ -59,27 +59,11 @@ export function mpOpenLobby({ onStart, onCancel } = {}) {
   }
 
   window.PlaySDK.onReady(() => {
-    // isSignedIn can flip true after onReady (token arrives via postMessage).
-    // Poll for up to ~4.5s before giving up — defensive fallback for older
-    // cached SDKs. The platform's fixed SDK should satisfy on the first check.
-    let tries = 15;
-    (function check() {
-      if (window.PlaySDK.isSignedIn) {
-        window.PlaySDK.multiplayer.showLobby({
-          maxPlayers: 4,
-          onStart: () => { onStartCallback(); },
-          onCancel: () => { onCancelCallback(); },
-        });
-        return;
-      }
-      if (--tries <= 0) {
-        console.warn('[mp] still not signed in after retries — giving up');
-        showMpToast('Multiplayer needs you signed in at play.nitzan.games.');
-        onCancelCallback();
-        return;
-      }
-      setTimeout(check, 300);
-    })();
+    window.PlaySDK.multiplayer.showLobby({
+      maxPlayers: 4,
+      onStart: () => { onStartCallback(); },
+      onCancel: () => { onCancelCallback(); },
+    });
   });
 }
 

@@ -292,6 +292,21 @@ export function mpReportLocalFinish(userId, finishTime, bestLap) {
   _checkAllFinished(false);
 }
 
+// Snapshot of in-progress finish state — used by the local-finish results
+// overlay to render live standings while waiting for opponents.
+export function mpGetFinishStatus() {
+  return {
+    local: {
+      finished: localFinished,
+      finishTime: localFinishData ? localFinishData.finishTime : null,
+      bestLap: localFinishData ? localFinishData.bestLap : null,
+    },
+    remotes: Array.from(remoteFinishes.entries()).map(([userId, d]) => ({
+      userId, finishTime: d.finishTime, bestLap: d.bestLap,
+    })),
+  };
+}
+
 export function mpIngestFinish(fromUserId, msg) {
   if (remoteFinishes.has(fromUserId)) return;
   remoteFinishes.set(fromUserId, { finishTime: msg.finishTime, bestLap: msg.bestLap });

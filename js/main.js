@@ -32,7 +32,7 @@ import {
   getAntialiasEnabled, setAntialiasEnabled,
   getPixelRatio, cyclePixelRatio,
 } from './graphics-settings.js';
-import { mpOpenLobby, mpGetRoom, mpIsHost, mpLocalUserId, mpShowHostPicker, mpShowWaiting, mpInitMessaging, mpSetMessageHandler, mpSetDisconnectHandler, mpHostStartRace, mpBroadcast, mpClearSnapshots, mpBroadcastLocalCar, mpIngestCarState, mpInterpolateRemote, mpResetFinishTracker, mpReportLocalFinish, mpIngestFinish } from './multiplayer.js';
+import { mpOpenLobby, mpGetRoom, mpIsHost, mpLocalUserId, mpShowHostPicker, mpShowWaiting, mpInitMessaging, mpSetMessageHandler, mpSetDisconnectHandler, mpHostStartRace, mpBroadcast, mpClearSnapshots, mpBroadcastLocalCar, mpIngestCarState, mpInterpolateRemote, mpResetFinishTracker, mpReportLocalFinish, mpIngestFinish, mpGetFinishStatus } from './multiplayer.js';
 import { initChaseCamera, updateChaseCamera, triggerShake, resetChaseCamera } from './camera3d.js';
 import { buildTrack as buildTrack3D, disposeTrack, setStartLights } from './track-builder.js';
 import { buildCarModel, updateCarModel } from './car-models.js';
@@ -72,6 +72,10 @@ let playerFinished = false;
 let playerAutoController = null; // AI that takes over cars[0] after player finishes
 let raceRecorded = false;        // has recordRaceResult been called for this race
 let pendingMpConfig = null;      // race-config payload received before race-start
+// MP finish position locked at the moment the local player crosses the line
+// (= number of remote finishes already received + 1). Captured once and
+// reused so subsequent remote finishes don't bump our displayed position.
+let mpLocalFinishPosition = null;
 
 // Career-driven
 let career = null;              // cached career state
@@ -187,6 +191,10 @@ mpSetMessageHandler((fromUserId, msg) => {
   }
   if (msg.type === 'race-finish') {
     mpIngestFinish(fromUserId, msg);
+    // If the local player has already finished, refresh the live
+    // standings on the finish-results overlay so opponent finish times
+    // appear as they cross the line.
+    if (playerFinished) showMpFinishedScreen();
     return;
   }
 });
@@ -634,6 +642,7 @@ function startMultiplayerRace({ seed, tierIdx, startAt }) {
   playerFinished = false;
   playerAutoController = null;
   raceRecorded = false;
+  mpLocalFinishPosition = null;
 
   initTrack(seed);
   spawnCars();
@@ -710,6 +719,11 @@ function renderMpResults(results) {
  * the remaining car indices by current progress).
  */
 function showRaceResults(finishOrder) {
+  // SP screen layout: CONTINUE button visible, "waiting" line hidden.
+  // (MP may have toggled these the other way for the same screen.)
+  document.getElementById('btn-next').classList.remove('hidden');
+  document.getElementById('finish-waiting').classList.add('hidden');
+
   const playerIdx = 0;
   const playerFinishPos = finishOrder.indexOf(playerIdx);
 
@@ -765,6 +779,85 @@ function renderLiveRaceStandings(elementId, entries) {
     row.innerHTML = `<span><span class="pos">P${i + 1}</span>${name}</span><span>${marker}</span>`;
     el.appendChild(row);
   }
+}
+
+// MP variant of the finish-results screen. Reuses #screen-finished but
+// hides points + the CONTINUE button, shows a "waiting for opponents"
+// line, and renders standings from mpGetFinishStatus() (so opponent
+// finish times appear live as their `race-finish` messages arrive).
+// The position display is locked to mpLocalFinishPosition, captured
+// when the local player crossed the line.
+function showMpFinishedScreen() {
+  const room = mpGetRoom();
+  if (!room) return;
+
+  const status = mpGetFinishStatus();
+
+  if (mpLocalFinishPosition != null) {
+    document.getElementById('finish-position').textContent = positionSuffix(mpLocalFinishPosition);
+  }
+  document.getElementById('finish-time').textContent = `TIME: ${formatTime(gameState.raceTime)}`;
+
+  const bestEl = document.getElementById('finish-best');
+  if (bestEl && cars[0] && cars[0].bestLap) {
+    bestEl.textContent = `BEST LAP: ${formatTime(cars[0].bestLap)}`;
+  } else if (bestEl) {
+    bestEl.textContent = '';
+  }
+
+  document.getElementById('finish-points').textContent = '';
+  document.getElementById('btn-next').classList.add('hidden');
+  document.getElementById('finish-waiting').classList.remove('hidden');
+
+  const myId = mpLocalUserId();
+  const remoteByUid = new Map();
+  for (const r of status.remotes) remoteByUid.set(r.userId, r);
+
+  const rows = [];
+  for (const p of room.players) {
+    const isMe = (myId && p.userId === myId);
+    let finishTime = null;
+    if (isMe && status.local.finished) {
+      finishTime = status.local.finishTime;
+    } else {
+      const r = remoteByUid.get(p.userId);
+      if (r) finishTime = r.finishTime;
+    }
+    let progress = 0;
+    if (finishTime == null) {
+      const car = cars.find(c => c.userData && c.userData.userId === p.userId);
+      if (car && centerLine && cl) {
+        progress = computeProgress(car.physX, car.physY, car.currentWaypointIdx, centerLine, cl, car.lapsCompleted || 0);
+      }
+    }
+    rows.push({
+      isMe,
+      name: isMe ? 'YOU' : (p.displayName || 'Anonymous'),
+      finishTime,
+      progress,
+    });
+  }
+  rows.sort((a, b) => {
+    if (a.finishTime != null && b.finishTime != null) return a.finishTime - b.finishTime;
+    if (a.finishTime != null) return -1;
+    if (b.finishTime != null) return 1;
+    return b.progress - a.progress;
+  });
+
+  const el = document.getElementById('race-standings');
+  if (el) {
+    el.innerHTML = '';
+    for (let i = 0; i < rows.length; i++) {
+      const r = rows[i];
+      const row = document.createElement('div');
+      row.className = 'row' + (r.isMe ? ' player' : '');
+      const right = r.finishTime != null ? formatTime(r.finishTime) : '…';
+      row.innerHTML = `<span><span class="pos">P${i + 1}</span>${r.name}</span><span>${right}</span>`;
+      el.appendChild(row);
+    }
+  }
+
+  showScreen('finished');
 }
 
 function continueFromResults() {
@@ -1211,7 +1304,16 @@ function fixedUpdate() {
             playerFinished = true;
             if (raceMode === 'multiplayer') {
               gameState.state = 'finishing';
+              // Lock our displayed position to the count of opponents who
+              // have already finished (read BEFORE reporting our own).
+              mpLocalFinishPosition = mpGetFinishStatus().remotes.length + 1;
               mpReportLocalFinish(mpLocalUserId(), gameState.raceTime, cars[0].bestLap);
+              // Hand control of the broadcast car to AI so it keeps moving
+              // for everyone else while we watch the results overlay.
+              playerAutoController = new AIController(
+                cars[0], walls, AI_SKILLS[AI_SKILLS.length - 1], cars,
+              );
+              showMpFinishedScreen();
             } else {
               // Player crossed the line — hand control to an AI clone so the
               // player's car keeps racing. Skill is the top AI skill.

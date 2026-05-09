@@ -37,9 +37,11 @@ html, body {
   left: 50%;
   transform: translate(-50%, -50%);
   aspect-ratio: 9 / 16;
-  height: 100%;
-  max-width: 100%;
-  max-height: 100vh;
+  /* Height must shrink with viewport width in narrow portrait, otherwise
+     `aspect-ratio` is overridden once `max-width: 100%` clamps the auto
+     width and the UI box stretches to the full viewport (HUD elements
+     end up outside the 9:16 game canvas). */
+  height: min(100vh, 100vw * 16 / 9);
   pointer-events: none;
   color: #fff;
   container-type: size;

@@ -881,8 +881,8 @@ function continueFromResults() {
       if (!full.includes(i)) remaining.push(i);
     }
     remaining.sort((a, b) => {
-      const pa = computeProgress({ x: cars[a].physX, y: cars[a].physY }, cars[a].currentWaypointIdx, centerLine, cl, cars[a].lapsCompleted || 0);
-      const pb = computeProgress({ x: cars[b].physX, y: cars[b].physY }, cars[b].currentWaypointIdx, centerLine, cl, cars[b].lapsCompleted || 0);
+      const pa = computeProgress(cars[a].physX, cars[a].physY, cars[a].currentWaypointIdx, centerLine, cl, cars[a].lapsCompleted || 0);
+      const pb = computeProgress(cars[b].physX, cars[b].physY, cars[b].currentWaypointIdx, centerLine, cl, cars[b].lapsCompleted || 0);
       return pb - pa;
     });
     for (const idx of remaining) full.push(idx);

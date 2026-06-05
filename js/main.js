@@ -193,8 +193,11 @@ mpSetMessageHandler((fromUserId, msg) => {
     mpIngestFinish(fromUserId, msg);
     // If the local player has already finished, refresh the live
     // standings on the finish-results overlay so opponent finish times
-    // appear as they cross the line.
-    if (playerFinished) showMpFinishedScreen();
+    // appear as they cross the line. But if this was the LAST finish,
+    // mpIngestFinish already fired the all-finished callback (→ mpresults
+    // screen, state 'postrace'); don't clobber it back to the waiting
+    // overlay.
+    if (playerFinished && gameState.state !== 'postrace') showMpFinishedScreen();
     return;
   }
 });
@@ -1313,7 +1316,10 @@ function fixedUpdate() {
               playerAutoController = new AIController(
                 cars[0], walls, AI_SKILLS[AI_SKILLS.length - 1], cars,
               );
-              showMpFinishedScreen();
+              // If we were the LAST to finish, mpReportLocalFinish already
+              // fired the all-finished callback (→ mpresults, state
+              // 'postrace'); don't revert to the waiting overlay.
+              if (gameState.state !== 'postrace') showMpFinishedScreen();
             } else {
               // Player crossed the line — hand control to an AI clone so the
               // player's car keeps racing. Skill is the top AI skill.
